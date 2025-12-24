@@ -1,0 +1,465 @@
+package com.quillapiclient;
+
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.JTree;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreePath;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.quillapiclient.components.LeftPanel;
+import com.quillapiclient.components.ResponsePanel;
+import com.quillapiclient.components.TopPanel;
+import com.quillapiclient.objects.Item;
+import com.quillapiclient.objects.PostmanCollection;
+import com.quillapiclient.objects.Request;
+import com.quillapiclient.server.ApiCallBuilder;
+import com.quillapiclient.server.ApiResponse;
+import com.quillapiclient.utility.FileSelectionListener;
+import com.quillapiclient.utility.OpenFileAction;
+
+public class Views {
+    //GUI components
+    public JFrame jFrame;
+    private JSplitPane horizontalSplitPane;
+    private JSplitPane verticalSplitPane;
+    public JTree jTree;
+    private JScrollPane treeScrollPane;
+    private JPanel leftPanel;
+    private JPanel mainPanel;
+    private JPanel responsePanel;
+    public JTextField urlField;
+    public JComboBox<String> methodDropdown;
+    public JTextArea bodyTextArea;
+    public JPanel authPanel;
+    public JComboBox<String> authTypeComboBox;
+    public JTextField userField;
+    public JTextField passField;
+    public JTextField tokenField;
+    public JTextArea headersTextArea;
+    public JTextArea paramsTextArea;
+    private ResponsePanel responsePanelComponent;
+
+    // Map to keep track of requests by their names
+    public Map<String, Request> collectionMap = new HashMap<>();
+    public PostmanCollection postmanCollection;
+
+    // Initialize main frame properties
+    public void initializeFrame() {
+        jFrame = new JFrame("Quill Client");
+        jFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        jFrame.setSize(1200, 1000);
+    }
+
+    // Initialize all UI components and add them to the frame
+    public void initializeComponents() {
+        // Initialize auth fields early so they're available for FileSelectionListener
+        userField = new JTextField();
+        userField.setToolTipText("Username");
+        passField = new JTextField();
+        passField.setToolTipText("Password");
+        tokenField = new JTextField();
+        tokenField.setToolTipText("Token");
+        
+        // Create main panel containing the request input and configuration tabs
+        mainPanel = createMainPanel();
+
+        // Create an empty tree initially
+        DefaultMutableTreeNode emptyRoot = new DefaultMutableTreeNode("No collection loaded");
+        jTree = new JTree(emptyRoot);
+        
+        // Create callback to handle request selection
+        FileSelectionListener.RequestSelectionCallback requestCallback = (Request request) -> {
+            populateRequestFields(request);
+        };
+        
+        FileSelectionListener fileSelectionListener = new FileSelectionListener(
+            jTree, collectionMap, requestCallback);
+        
+        // Create action listener for Import button
+        OpenFileAction.FileChooserCallback importCallback = (File file) -> {
+            loadCollectionFile(file);
+        };
+        OpenFileAction importAction = new OpenFileAction(importCallback);
+        
+        // Create action listener for New button (placeholder for now)
+        java.awt.event.ActionListener newAction = (e) -> {
+            // TODO: Implement new collection creation
+            System.out.println("New collection button clicked");
+        };
+        
+        LeftPanel leftPanelComponent = new LeftPanel(jTree, fileSelectionListener, importAction, newAction);
+        leftPanel = leftPanelComponent.getPanel();
+        treeScrollPane = new JScrollPane(leftPanel);
+
+        // Create response panel to show outputs
+        responsePanelComponent = new ResponsePanel();
+        responsePanel = responsePanelComponent.getPanel();
+
+        // Create vertical split pane: Top (mainPanel) and Bottom (responsePanel)
+        verticalSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, mainPanel, responsePanel);
+        verticalSplitPane.setDividerLocation(750);
+        verticalSplitPane.setContinuousLayout(true);
+
+        // Create horizontal split pane: Left (tree) and Right (verticalSplitPane)
+        horizontalSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, treeScrollPane, verticalSplitPane);
+        horizontalSplitPane.setDividerLocation(250);
+        horizontalSplitPane.setContinuousLayout(true);
+
+        // Optional: add change listener if you intend to manage tab changes later
+        JTabbedPane dummyTabbedPane = new JTabbedPane();
+        dummyTabbedPane.addChangeListener(new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                // Handle tab switching logic if needed
+            }
+        });
+
+        jFrame.getContentPane().add(horizontalSplitPane);
+    }
+
+    // Create the main panel containing the top panel and the request configuration tabs
+    private JPanel createMainPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        TopPanel topPanelComponent = new TopPanel();
+        methodDropdown = topPanelComponent.getMethodDropdown();
+        urlField = topPanelComponent.getUrlField();
+        
+        // Connect Send button to execute API calls
+        topPanelComponent.getSendButton().addActionListener(e -> executeApiCall());
+        
+        panel.add(topPanelComponent.getPanel(), BorderLayout.NORTH);
+        panel.add(createRequestTabs(), BorderLayout.CENTER);
+        return panel;
+    }
+
+    // Create a tabbed pane for various request configurations
+    private JTabbedPane createRequestTabs() {
+        JTabbedPane tabs = new JTabbedPane();
+        bodyTextArea = new JTextArea();
+        authPanel = new JPanel(new BorderLayout());
+
+        //Auth component
+        String[] authTypes = {"No auth", "Basic auth", "Bearer token", "Jwt bearer"};
+        authTypeComboBox = new JComboBox<>(authTypes);
+        authPanel.add(authTypeComboBox, BorderLayout.NORTH);
+        
+        // Add action listener to update UI when selection changes
+        authTypeComboBox.addActionListener(e -> updateAuthPanel());
+        
+        // Initialize with default selection
+        updateAuthPanel();
+
+        //Headers component
+        headersTextArea = new JTextArea();
+        headersTextArea.setToolTipText("Enter headers in format: Key: Value (one per line)");
+        
+        //Params component
+        paramsTextArea = new JTextArea();
+        paramsTextArea.setToolTipText("Enter query parameters in format: key=value&key2=value2 or key: value (one per line)");
+
+        // Wrapping JTextAreas in JScrollPanes is helpful for large texts
+        tabs.addTab("Body", new JScrollPane(bodyTextArea));
+        tabs.addTab("Authorization", authPanel);
+        tabs.addTab("Headers", new JScrollPane(headersTextArea));
+        tabs.addTab("Params", new JScrollPane(paramsTextArea));
+        tabs.addTab("Scripts", new JScrollPane(new JTextArea()));
+        tabs.addTab("Settings", new JScrollPane(new JTextArea()));
+        return tabs;
+    }
+    
+    // Update the auth panel based on the selected authentication type
+    private void updateAuthPanel() {
+        if (authTypeComboBox == null || authPanel == null) {
+            return;
+        }
+        
+        // Remove all components except the combo box
+        authPanel.removeAll();
+        authPanel.add(authTypeComboBox, BorderLayout.NORTH);
+        
+        // Create a panel for the auth fields
+        JPanel fieldsPanel = new JPanel();
+        fieldsPanel.setLayout(new BoxLayout(fieldsPanel, BoxLayout.Y_AXIS));
+        fieldsPanel.setBorder(javax.swing.BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        
+        String selectedAuth = (String) authTypeComboBox.getSelectedItem();
+        
+        switch(selectedAuth) {
+            case "No auth":
+                // No fields needed
+                JLabel noAuthLabel = new JLabel("No authentication required");
+                noAuthLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
+                fieldsPanel.add(noAuthLabel);
+                break;
+                
+            case "Basic auth":
+                // Fields are already initialized, just use them
+                JLabel userLabel = new JLabel("Username:");
+                userLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
+                userField.setAlignmentX(JTextField.LEFT_ALIGNMENT);
+                userField.setMaximumSize(new Dimension(Integer.MAX_VALUE, userField.getPreferredSize().height));
+                fieldsPanel.add(userLabel);
+                fieldsPanel.add(Box.createVerticalStrut(5));
+                fieldsPanel.add(userField);
+                fieldsPanel.add(Box.createVerticalStrut(10));
+                
+                JLabel passLabel = new JLabel("Password:");
+                passLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
+                passField.setAlignmentX(JTextField.LEFT_ALIGNMENT);
+                passField.setMaximumSize(new Dimension(Integer.MAX_VALUE, passField.getPreferredSize().height));
+                fieldsPanel.add(passLabel);
+                fieldsPanel.add(Box.createVerticalStrut(5));
+                fieldsPanel.add(passField);
+                break;
+                
+            case "Bearer token":
+                // Field is already initialized, just use it
+                tokenField.setToolTipText("Bearer Token");
+                JLabel tokenLabel = new JLabel("Token:");
+                tokenLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
+                tokenField.setAlignmentX(JTextField.LEFT_ALIGNMENT);
+                tokenField.setMaximumSize(new Dimension(Integer.MAX_VALUE, tokenField.getPreferredSize().height));
+                fieldsPanel.add(tokenLabel);
+                fieldsPanel.add(Box.createVerticalStrut(5));
+                fieldsPanel.add(tokenField);
+                break;
+                
+            case "Jwt bearer":
+                // Field is already initialized, just use it
+                tokenField.setToolTipText("JWT Token");
+                JLabel jwtLabel = new JLabel("JWT Token:");
+                jwtLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
+                tokenField.setAlignmentX(JTextField.LEFT_ALIGNMENT);
+                tokenField.setMaximumSize(new Dimension(Integer.MAX_VALUE, tokenField.getPreferredSize().height));
+                fieldsPanel.add(jwtLabel);
+                fieldsPanel.add(Box.createVerticalStrut(5));
+                fieldsPanel.add(tokenField);
+                break;
+        }
+        
+        authPanel.add(fieldsPanel, BorderLayout.CENTER);
+        authPanel.revalidate();
+        authPanel.repaint();
+    }
+    
+    // Populate UI fields from a selected Request object
+    private void populateRequestFields(Request request) {
+        if (request == null) {
+            return;
+        }
+        
+        // Populate URL
+        if (request.getUrl() != null && request.getUrl().getRaw() != null) {
+            urlField.setText(request.getUrl().getRaw());
+        } else {
+            urlField.setText("");
+        }
+        
+        // Populate method
+        if (request.getMethod() != null) {
+            methodDropdown.setSelectedItem(request.getMethod());
+        }
+        
+        // Populate body
+        if (request.getBody() != null && request.getBody().getRaw() != null) {
+            bodyTextArea.setText(request.getBody().getRaw());
+        } else {
+            bodyTextArea.setText("");
+        }
+        
+        // Populate auth fields
+        if (request.getAuth() != null) {
+            if (request.getAuth().getBasic() != null) {
+                // Basic auth - username and password
+                if (request.getAuth().getBasic().size() > 0) {
+                    userField.setText(request.getAuth().getBasic().get(0).getValue());
+                } else {
+                    userField.setText("");
+                }
+                if (request.getAuth().getBasic().size() > 1) {
+                    passField.setText(request.getAuth().getBasic().get(1).getValue());
+                } else {
+                    passField.setText("");
+                }
+                tokenField.setText("");
+                // Update auth type combo box
+                authTypeComboBox.setSelectedItem("Basic auth");
+            } else if (request.getAuth().getBearer() != null) {
+                // Bearer token auth
+                if (request.getAuth().getBearer().size() > 0) {
+                    tokenField.setText(request.getAuth().getBearer().get(0).getValue());
+                } else {
+                    tokenField.setText("");
+                }
+                userField.setText("");
+                passField.setText("");
+                // Update auth type combo box
+                authTypeComboBox.setSelectedItem("Bearer token");
+            } else {
+                // Unknown auth type, clear all
+                userField.setText("");
+                passField.setText("");
+                tokenField.setText("");
+                authTypeComboBox.setSelectedItem("No auth");
+            }
+        } else {
+            // No auth, clear all fields
+            userField.setText("");
+            passField.setText("");
+            tokenField.setText("");
+            authTypeComboBox.setSelectedItem("No auth");
+        }
+    }
+    
+    // Execute API call using ApiCallBuilder and display response
+    private void executeApiCall() {
+        // Get values from UI components
+        String url = urlField.getText().trim();
+        if (url.isEmpty()) {
+            responsePanelComponent.setResponse("Error: URL cannot be empty");
+            return;
+        }
+        
+        String method = (String) methodDropdown.getSelectedItem();
+        String headersText = headersTextArea != null ? headersTextArea.getText() : "";
+        String bodyText = bodyTextArea != null ? bodyTextArea.getText() : "";
+        String authType = (String) authTypeComboBox.getSelectedItem();
+        String username = userField != null ? userField.getText() : "";
+        String password = passField != null ? passField.getText() : "";
+        String token = tokenField != null ? tokenField.getText() : "";
+        String paramsText = paramsTextArea != null ? paramsTextArea.getText() : "";
+        
+        // Show loading message
+        responsePanelComponent.setResponse("Sending request...\n\nURL: " + url + "\nMethod: " + method);
+        
+        // Execute request in a separate thread to avoid blocking UI
+        new Thread(() -> {
+            ApiResponse response = null;
+            try {
+                response = ApiCallBuilder.fromUI(
+                    url, method, headersText, bodyText, authType,
+                    username, password, token, paramsText
+                ).execute();
+                
+                // Format response for display
+                StringBuilder responseText = new StringBuilder();
+                responseText.append("Status Code: ").append(response.getStatusCode());
+                responseText.append(response.isSuccess() ? " ✓" : " ✗").append("\n\n");
+                
+                // Add headers if available
+                if (response.getHeaders() != null && !response.getHeaders().isEmpty()) {
+                    responseText.append("Headers:\n");
+                    for (Map.Entry<String, java.util.List<String>> entry : response.getHeaders().entrySet()) {
+                        responseText.append("  ").append(entry.getKey()).append(": ");
+                        responseText.append(String.join(", ", entry.getValue())).append("\n");
+                    }
+                    responseText.append("\n");
+                }
+                
+                // Add body
+                if (response.getBody() != null && !response.getBody().isEmpty()) {
+                    responseText.append("Body:\n").append(response.getBody());
+                } else {
+                    responseText.append("Body: (empty)");
+                }
+                
+                // Update UI on EDT
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    responsePanelComponent.setResponse(responseText.toString());
+                });
+                
+            } catch (Exception e) {
+                // Handle unexpected errors (shouldn't happen now, but keep as fallback)
+                StringBuilder errorBuilder = new StringBuilder("Status Code: 500 ✗\n\n");
+                errorBuilder.append("Body:\n");
+                errorBuilder.append("{\"error\": \"Internal Error\", \"message\": \"");
+                errorBuilder.append(e.getMessage() != null ? e.getMessage().replace("\"", "\\\"") : e.getClass().getSimpleName());
+                errorBuilder.append("\"}");
+                
+                final String errorMessage = errorBuilder.toString();
+                
+                // Update UI on EDT
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    responsePanelComponent.setResponse(errorMessage);
+                });
+                
+                e.printStackTrace();
+            }
+        }).start();
+    }
+
+    // Builds a tree from the Postman collection JSON file.
+    public DefaultMutableTreeNode buildTreeFromCollection(File file) {
+        ObjectMapper objectMapper = new ObjectMapper();
+        DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode(file.getName());
+        try {
+            postmanCollection = objectMapper.readValue(file, PostmanCollection.class);
+            // Iterate through top-level items and create tree nodes recursively
+            for (Item item : postmanCollection.getItem()) {
+                if (item.getRequest() != null) {
+                    collectionMap.put(item.getName(), item.getRequest());
+                }
+                rootNode.add(buildNode(item));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return rootNode;
+    }
+
+    // Recursive method to build tree nodes from collection items.
+    private DefaultMutableTreeNode buildNode(Item item) {
+        DefaultMutableTreeNode node = new DefaultMutableTreeNode(item.getName());
+        if (item.getItem() != null && !item.getItem().isEmpty()) {
+            for (Item child : item.getItem()) {
+                if (child.getRequest() != null) {
+                    collectionMap.put(child.getName(), child.getRequest());
+                }
+                node.add(buildNode(child));
+            }
+        }
+        return node;
+    }
+    
+    // Load a collection file and update the tree
+    public void loadCollectionFile(File file) {
+        if (file == null || !file.exists()) {
+            return;
+        }
+        
+        // Clear existing collection map
+        collectionMap.clear();
+        
+        // Build new tree from the selected file
+        DefaultMutableTreeNode rootNode = buildTreeFromCollection(file);
+        
+        // Update the tree model
+        DefaultTreeModel model = new DefaultTreeModel(rootNode);
+        jTree.setModel(model);
+        
+        // Expand the root node
+        TreePath rootPath = new TreePath(rootNode);
+        jTree.expandPath(rootPath);
+    }
+}
+

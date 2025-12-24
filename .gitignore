@@ -1,0 +1,144 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Compiled class files
+*.class
+
+# Log files
+*.log
+*.log.*
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Virtual machine crash logs
+hs_err_pid*
+replay_pid*
+
+# IDE - IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# IDE - Eclipse
+.classpath
+.project
+.settings/
+bin/
+.metadata
+
+# IDE - VS Code
+.vscode/
+*.code-workspace
+
+# IDE - NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# OS - macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# OS - Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# OS - Linux
+*~
+.directory
+.Trash-*
+.nfs*
+
+# Application specific
+# SQLite database files (user data, should not be committed)
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# User-specific application data directory
+.quillclient/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.*.sw?
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Test coverage
+.nyc_output/
+coverage/
+*.lcov
+
+# Build artifacts
+build/
+dist/
+*.apk
+*.aab
+
+# Generated sources (if any)
+generated/
+generated-sources/
+
+# Maven wrapper (optional - uncomment if you don't want to commit wrapper)
+# .mvn/wrapper/maven-wrapper.properties
+
+# Application logs
+logs/
+*.log.*
+
+# Local configuration files
+config.local.properties
+application.local.properties
+
+#Code Review files
+CODE_REVIEW.md
