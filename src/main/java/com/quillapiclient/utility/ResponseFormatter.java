@@ -33,19 +33,6 @@ public class ResponseFormatter {
         responseText.append("[").append(timestamp).append("] ").append(message).append("\n");
         responseText.append("═".repeat(60)).append("\n");
         
-        // Status code with visual indicator
-        responseText.append("STATUS: ");
-        int statusCode = response.getStatusCode();
-        if (response.isSuccess()) {
-            responseText.append("SUCCESS");
-        } else if (statusCode >= 400 && statusCode < 500) {
-            responseText.append("WARNING");
-        } else {
-            responseText.append("ERROR");
-        }
-        responseText.append(" ").append(statusCode).append(" ").append(getStatusText(statusCode));
-        responseText.append(" (").append(response.getDuration()).append(" ms)\n\n");
-        
         // Headers section
         if (response.getHeaders() != null && !response.getHeaders().isEmpty()) {
             responseText.append("HEADERS (").append(response.getHeaders().size()).append("):\n");
@@ -92,17 +79,6 @@ public class ResponseFormatter {
             }
         } else {
             responseText.append("BODY: (empty)\n");
-        }
-        
-        // Add request summary at the end
-        responseText.append("\n").append("═".repeat(60)).append("\n");
-        responseText.append("SUMMARY:\n");
-        responseText.append("  • Status: ").append(statusCode)
-                   .append(" (").append(response.isSuccess() ? "Success" : "Error").append(")\n");
-        responseText.append("  • Time: ").append(response.getDuration()).append(" ms\n");
-        
-        if (response.getBody() != null) {
-            responseText.append("  • Size: ").append(formatSize(response.getBody().length())).append("\n");
         }
         
         return responseText.toString();

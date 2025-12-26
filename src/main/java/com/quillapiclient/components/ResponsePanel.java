@@ -12,7 +12,12 @@ import javax.swing.JTextArea;
 public class ResponsePanel {
     private JPanel panel;
     private JTextArea responseArea;
+    private JLabel statusLabel;
+    private JLabel durationLabel;
     private boolean errorState;
+    private final String RESPONSE_LABEL = "Response";
+    String STATUS_LABEL = "Status";
+    String DURATION_LABEL = "Duration";
     
     public ResponsePanel() {
         this.panel = createPanel();
@@ -21,12 +26,26 @@ public class ResponsePanel {
     
     private JPanel createPanel() {
         JPanel panel = new JPanel(new BorderLayout());
-        JLabel responseLabel = new JLabel("Response");
+        
+        // Create top panel with Response label on left and Status/Duration on right
+        JPanel topPanel = new JPanel(new BorderLayout());
+        JLabel responseLabel = new JLabel(RESPONSE_LABEL);
+        
+        // Create panel for Status and Duration labels on the right
+        JPanel rightPanel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT, 10, 0));
+        statusLabel = new JLabel(STATUS_LABEL);
+        durationLabel = new JLabel(DURATION_LABEL);
+        rightPanel.add(statusLabel);
+        rightPanel.add(durationLabel);
+        
+        topPanel.add(responseLabel, BorderLayout.WEST);
+        topPanel.add(rightPanel, BorderLayout.EAST);
+        
         responseArea = new JTextArea();
         responseArea.setEditable(false);
         JScrollPane responseScroll = new JScrollPane(responseArea);
 
-        panel.add(responseLabel, BorderLayout.NORTH);
+        panel.add(topPanel, BorderLayout.NORTH);
         panel.add(responseScroll, BorderLayout.CENTER);
         return panel;
     }
@@ -63,6 +82,40 @@ public class ResponsePanel {
     
     public boolean isErrorState() {
         return errorState;
+    }
+    
+    /**
+     * Updates the status label with the status code from the response.
+     * 
+     * @param statusCode The HTTP status code
+     */
+    public void setStatus(int statusCode) {
+        if (statusLabel != null) {
+            statusLabel.setText(STATUS_LABEL + ": " + statusCode);
+        }
+    }
+    
+    /**
+     * Updates the duration label with the duration from the response.
+     * 
+     * @param duration The duration in milliseconds
+     */
+    public void setDuration(long duration) {
+        if (durationLabel != null) {
+            durationLabel.setText(DURATION_LABEL + ": " + duration + " ms");
+        }
+    }
+    
+    /**
+     * Resets the status and duration labels to their default values.
+     */
+    public void resetStatusAndDuration() {
+        if (statusLabel != null) {
+            statusLabel.setText(STATUS_LABEL);
+        }
+        if (durationLabel != null) {
+            durationLabel.setText(DURATION_LABEL);
+        }
     }
 }
 

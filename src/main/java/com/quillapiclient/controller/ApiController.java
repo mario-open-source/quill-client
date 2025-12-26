@@ -28,12 +28,14 @@ public class ApiController {
                               String password, String token, String paramsText, int itemId) {
         if (url.isEmpty()) {
             responsePanel.setResponse("Error: URL cannot be empty");
+            responsePanel.resetStatusAndDuration();
             return;
         }
         
         // Show loading message
         String loadingMessage = createLoadingMessage(url, method, headersText, bodyText, authType);
         responsePanel.setResponse(loadingMessage);
+        responsePanel.resetStatusAndDuration(); // Reset while loading
         
         // Submit the API call to the executor service
         executorService.submit(() -> {
@@ -102,6 +104,10 @@ public class ApiController {
         
         // Update the response panel
         responsePanel.setResponse(formattedResponse);
+        
+        // Update status and duration labels
+        responsePanel.setStatus(response.getStatusCode());
+        responsePanel.setDuration(response.getDuration());
         
         // If there's an error status, show it more prominently
         if (!response.isSuccess()) {
@@ -178,6 +184,7 @@ public class ApiController {
         // Update the response panel
         responsePanel.setResponse(errorBuilder.toString());
         responsePanel.setErrorState(true);
+        responsePanel.resetStatusAndDuration(); // Reset on error (no valid response)
     }
     
     /**
