@@ -4,7 +4,6 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.event.ActionListener;
 
-import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -25,12 +24,12 @@ public class LeftPanel {
     
     private JPanel createPanelWithTree(JTree jTree, TreeSelectionListener selectionListener,
                                        ActionListener importActionListener, ActionListener newActionListener) {
-        JPanel panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        // Use BorderLayout to properly fill available space
+        JPanel panel = new JPanel(new BorderLayout());
 
         // Panel for Import and New buttons
         JPanel buttonPanel = new JPanel(new BorderLayout());
-        buttonPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+        buttonPanel.setPreferredSize(new Dimension(Integer.MAX_VALUE, 50));
         buttonImportCollection = new JButton("Import");
         buttonNewCollection = new JButton("New");
         
@@ -44,19 +43,20 @@ public class LeftPanel {
         buttonPanel.add(buttonImportCollection, BorderLayout.WEST);
         buttonPanel.add(buttonNewCollection, BorderLayout.EAST);
         
-        panel.add(buttonPanel);
+        // Add button panel at the top
+        panel.add(buttonPanel, BorderLayout.NORTH);
 
         // Use the provided JTree and add a selection listener
-        jTree.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         jTree.addTreeSelectionListener(selectionListener);
 
         // Wrap the tree in a scroll pane to enable scrolling when it becomes too large
+        // The scroll pane will fill the remaining space (CENTER in BorderLayout)
         JScrollPane scrollPane = new JScrollPane(jTree);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.setPreferredSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         
-        panel.add(scrollPane);
+        // Add scroll pane in the center to fill remaining space
+        panel.add(scrollPane, BorderLayout.CENTER);
 
         return panel;
     }
