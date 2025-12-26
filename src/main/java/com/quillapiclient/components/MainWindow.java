@@ -7,12 +7,13 @@ public class MainWindow {
     private JFrame frame;
     private JSplitPane horizontalSplitPane;
     private JSplitPane verticalSplitPane;
+    private final String TITLE = "Quill Client";
     public MainWindow() {
         initializeFrame();
     }
 
     private void initializeFrame() {
-        frame = new JFrame("Quill Client");
+        frame = new JFrame(TITLE);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(1200, 1000);
     }

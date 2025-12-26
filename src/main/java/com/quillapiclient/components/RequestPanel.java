@@ -17,6 +17,13 @@ public class RequestPanel {
     private JTextArea headersTextArea;
     private JTextArea paramsTextArea;
     private AuthPanel authPanel;
+
+    private final String BODY_LABEL = "Body";
+    private final String AUTHORIZATION_LABEL = "Authorization";
+    private final String HEADERS_LABEL = "Headers";
+    private final String PARAMS_LABEL = "Params";
+    private final String SCRIPTS_LABEL = "Scripts";
+    private final String SETTINGS_LABEL = "Settings";
     
     public RequestPanel() {
         panel = new JPanel(new BorderLayout());
@@ -42,12 +49,12 @@ public class RequestPanel {
         paramsTextArea = new JTextArea();
         paramsTextArea.setToolTipText("Enter query parameters in format: key=value&key2=value2 or key: value (one per line)");
         
-        tabs.addTab("Body", new JScrollPane(bodyTextArea));
-        tabs.addTab("Authorization", authPanel.getPanel());
-        tabs.addTab("Headers", new JScrollPane(headersTextArea));
-        tabs.addTab("Params", new JScrollPane(paramsTextArea));
-        tabs.addTab("Scripts", new JScrollPane(new JTextArea()));
-        tabs.addTab("Settings", new JScrollPane(new JTextArea()));
+        tabs.addTab(BODY_LABEL, new JScrollPane(bodyTextArea));
+        tabs.addTab(AUTHORIZATION_LABEL, authPanel.getPanel());
+        tabs.addTab(HEADERS_LABEL, new JScrollPane(headersTextArea));
+        tabs.addTab(PARAMS_LABEL, new JScrollPane(paramsTextArea));
+        tabs.addTab(SCRIPTS_LABEL, new JScrollPane(new JTextArea()));
+        tabs.addTab(SETTINGS_LABEL, new JScrollPane(new JTextArea()));
         return tabs;
     }
     

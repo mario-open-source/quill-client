@@ -86,7 +86,7 @@ public class Views {
      */
     private void loadAndDisplayResponse() {
         if (currentItemId <= 0) {
-            responsePanel.setResponse("There is no response for this request");
+            responsePanel.setResponse(ResponseFormatter.NO_RESPONSE_MESSAGE);
             responsePanel.setErrorState(false);
             responsePanel.resetStatusDurationSize();
             return;
@@ -95,7 +95,7 @@ public class Views {
         // Get the request ID from the item ID
         int requestId = CollectionDao.getRequestIdByItemId(currentItemId);
         if (requestId <= 0) {
-            responsePanel.setResponse("There is no response for this request");
+            responsePanel.setResponse(ResponseFormatter.NO_RESPONSE_MESSAGE);
             responsePanel.setErrorState(false);
             responsePanel.resetStatusDurationSize();
             return;
@@ -105,7 +105,7 @@ public class Views {
         ApiResponse response = CollectionDao.getLatestResponseByRequestId(requestId);
         
         if (response == null) {
-            responsePanel.setResponse("There is no response for this request");
+            responsePanel.setResponse(ResponseFormatter.NO_RESPONSE_MESSAGE);
             responsePanel.setErrorState(false);
             responsePanel.resetStatusDurationSize();
         } else {

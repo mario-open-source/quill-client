@@ -11,12 +11,17 @@ public class AuthPanel {
     private JTextField userField;
     private JTextField passField;
     private JTextField tokenField;
+
+    private String[] authTypes = {"No auth", "Basic auth", "Bearer token", "Jwt bearer"}; 
+    private final String NO_AUTH_TEXT = "No auth";
+    private final String BASIC_AUTH_TEXT = "Basic auth";
+    private final String BEARER_TOKEN_TEXT = "Bearer token";
+    private final String JWT_BEARER_TEXT = "Jwt bearer";
     
     public AuthPanel() {
         authPanel = new JPanel(new BorderLayout());
         
         // Auth component
-        String[] authTypes = {"No auth", "Basic auth", "Bearer token", "Jwt bearer"};
         authTypeComboBox = new JComboBox<>(authTypes);
         authPanel.add(authTypeComboBox, BorderLayout.NORTH);
         
@@ -51,13 +56,13 @@ public class AuthPanel {
         String selectedAuth = (String) authTypeComboBox.getSelectedItem();
         
         switch(selectedAuth) {
-            case "No auth":
+            case NO_AUTH_TEXT:
                 JLabel noAuthLabel = new JLabel("No authentication required");
                 noAuthLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
                 fieldsPanel.add(noAuthLabel);
                 break;
                 
-            case "Basic auth":
+            case BASIC_AUTH_TEXT:
                 JLabel userLabel = new JLabel("Username:");
                 userLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
                 userField.setAlignmentX(JTextField.LEFT_ALIGNMENT);
@@ -76,7 +81,7 @@ public class AuthPanel {
                 fieldsPanel.add(passField);
                 break;
                 
-            case "Bearer token":
+            case BEARER_TOKEN_TEXT:
                 tokenField.setToolTipText("Bearer Token");
                 JLabel tokenLabel = new JLabel("Token:");
                 tokenLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
@@ -87,7 +92,7 @@ public class AuthPanel {
                 fieldsPanel.add(tokenField);
                 break;
                 
-            case "Jwt bearer":
+            case JWT_BEARER_TEXT:
                 tokenField.setToolTipText("JWT Token");
                 JLabel jwtLabel = new JLabel("JWT Token:");
                 jwtLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);

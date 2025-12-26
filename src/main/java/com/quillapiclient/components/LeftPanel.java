@@ -15,7 +15,8 @@ public class LeftPanel {
     private JTree jTree;
     private JButton buttonImportCollection;
     private JButton buttonNewCollection;
-    
+    private final String IMPORT_TEXT = "Import";
+    private final String NEW_TEXT = "New";
     public LeftPanel(JTree jTree, TreeSelectionListener selectionListener, 
                      ActionListener importActionListener, ActionListener newActionListener) {
         this.jTree = jTree;
@@ -30,8 +31,8 @@ public class LeftPanel {
         // Panel for Import and New buttons
         JPanel buttonPanel = new JPanel(new BorderLayout());
         buttonPanel.setPreferredSize(new Dimension(Integer.MAX_VALUE, 50));
-        buttonImportCollection = new JButton("Import");
-        buttonNewCollection = new JButton("New");
+        buttonImportCollection = new JButton(IMPORT_TEXT);
+        buttonNewCollection = new JButton(NEW_TEXT);
         
         if (importActionListener != null) {
             buttonImportCollection.addActionListener(importActionListener);
