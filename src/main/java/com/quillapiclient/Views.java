@@ -34,7 +34,6 @@ public class Views {
         
         FileSelectionListener fileSelectionListener = new FileSelectionListener(
             collectionManager.getTree(), 
-            collectionManager.getCollectionMap(), 
             requestCallback
         );
         

@@ -1,17 +1,16 @@
 package com.quillapiclient.utility;
 
-import java.util.Map;
-
 import javax.swing.JTree;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 
+import com.quillapiclient.controller.CollectionTreeManager.TreeNodeData;
+import com.quillapiclient.db.CollectionDao;
 import com.quillapiclient.objects.Request;
 
 public class FileSelectionListener implements TreeSelectionListener {
     private JTree jTree;
-    private Map<String, Request> collectionMap;
     private RequestSelectionCallback callback;
 
     /**
@@ -22,10 +21,8 @@ public class FileSelectionListener implements TreeSelectionListener {
         void onRequestSelected(Request request);
     }
 
-    public FileSelectionListener(JTree jTree, Map<String, Request> collectionMap,
-                                 RequestSelectionCallback callback) {
+    public FileSelectionListener(JTree jTree, RequestSelectionCallback callback) {
         this.jTree = jTree;
-        this.collectionMap = collectionMap;
         this.callback = callback;
     }
 
@@ -37,21 +34,21 @@ public class FileSelectionListener implements TreeSelectionListener {
             return;
         }
         
-        String nodeString = selectedNode.toString();
-        
-        // Extract the original name by removing the method part [METHOD] if present
-        String originalName = nodeString;
-        if (nodeString != null && nodeString.contains("[") && nodeString.contains("]")) {
-            int bracketIndex = nodeString.indexOf("[");
-            originalName = nodeString.substring(0, bracketIndex).trim();
-        }
-        
-        if (!collectionMap.containsKey(originalName)) {
+        // Get the TreeNodeData from the selected node
+        Object userObject = selectedNode.getUserObject();
+        if (!(userObject instanceof TreeNodeData)) {
             return;
         }
         
-        // Get the selected request and notify via callback
-        Request selectedRequest = collectionMap.get(originalName);
+        TreeNodeData nodeData = (TreeNodeData) userObject;
+        
+        // Only process requests, not folders
+        if (!"request".equals(nodeData.itemType)) {
+            return;
+        }
+        
+        // Query the database for the request
+        Request selectedRequest = CollectionDao.getRequestByItemId(nodeData.itemId);
         if (callback != null && selectedRequest != null) {
             callback.onRequestSelected(selectedRequest);
         }

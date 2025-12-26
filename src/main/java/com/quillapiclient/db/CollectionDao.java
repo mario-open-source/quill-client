@@ -1,0 +1,757 @@
+package com.quillapiclient.db;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.quillapiclient.objects.*;
+
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Data Access Object for managing Postman collections in SQLite database.
+ * Handles saving collections and querying them for UI building.
+ */
+public class CollectionDao {
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+    
+    /**
+     * Saves a Postman collection to the database.
+     * If a collection with the same postman_id exists, it will be replaced.
+     * 
+     * @param collection The Postman collection to save
+     * @param fileName The name of the file (used as collection name if info.name is null)
+     * @return The collection ID in the database, or -1 if operation fails
+     */
+    public static int saveCollection(PostmanCollection collection, String fileName) {
+        Connection conn = LiteConnection.getConnection();
+        try {
+            conn.setAutoCommit(false);
+        } catch (SQLException e) {
+            System.err.println("Error setting auto-commit to false: " + e.getMessage());
+            e.printStackTrace();
+            return -1;
+        }
+        
+        try {
+            Info info = collection.getInfo();
+            String postmanId = info != null && info.getPostmanId() != null ? info.getPostmanId() : null;
+            String collectionName = (info != null && info.getName() != null) ? info.getName() : fileName;
+            String schemaVersion = info != null ? info.getSchema() : null;
+            String exporterId = info != null ? info.getExporterId() : null;
+            
+            // Check if collection already exists
+            int collectionId;
+            try (PreparedStatement checkStmt = conn.prepareStatement(
+                    "SELECT id FROM collections WHERE postman_id = ?")) {
+                checkStmt.setString(1, postmanId);
+                ResultSet rs = checkStmt.executeQuery();
+                if (rs.next()) {
+                    collectionId = rs.getInt("id");
+                    // Delete existing collection (cascade will delete all related data)
+                    try (PreparedStatement deleteStmt = conn.prepareStatement(
+                            "DELETE FROM collections WHERE id = ?")) {
+                        deleteStmt.setInt(1, collectionId);
+                        deleteStmt.executeUpdate();
+                    }
+                } else {
+                    collectionId = -1; // Will be set after insert
+                }
+            }
+            
+            // Insert collection
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO collections (postman_id, name, schema_version, exporter_id) VALUES (?, ?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS)) {
+                stmt.setString(1, postmanId);
+                stmt.setString(2, collectionName);
+                stmt.setString(3, schemaVersion);
+                stmt.setString(4, exporterId);
+                stmt.executeUpdate();
+                
+                ResultSet rs = stmt.getGeneratedKeys();
+                if (rs.next()) {
+                    collectionId = rs.getInt(1);
+                }
+            }
+            
+            // Save collection-level variables
+            if (collection.getVariable() != null) {
+                saveVariables(conn, collectionId, null, collection.getVariable());
+            }
+            
+            // Save collection-level events
+            if (collection.getEvent() != null) {
+                saveEvents(conn, collectionId, null, collection.getEvent());
+            }
+            
+            // Save items recursively
+            if (collection.getItem() != null) {
+                for (Item item : collection.getItem()) {
+                    saveItem(conn, collectionId, null, item);
+                }
+            }
+            
+            conn.commit();
+            return collectionId;
+        } catch (SQLException e) {
+            try {
+                conn.rollback();
+            } catch (SQLException rollbackEx) {
+                System.err.println("Error rolling back transaction: " + rollbackEx.getMessage());
+                rollbackEx.printStackTrace();
+            }
+            System.err.println("Error saving collection to database: " + e.getMessage());
+            e.printStackTrace();
+            return -1;
+        } finally {
+            try {
+                conn.setAutoCommit(true);
+            } catch (SQLException e) {
+                System.err.println("Error resetting auto-commit: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+    
+    /**
+     * Recursively saves an item (folder or request) to the database.
+     */
+    private static int saveItem(Connection conn, int collectionId, Integer parentId, Item item) {
+        String itemType = item.getRequest() != null ? "request" : "folder";
+        
+        // Insert item
+        int itemId = -1;
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "INSERT INTO items (collection_id, parent_id, name, item_type) VALUES (?, ?, ?, ?)",
+                Statement.RETURN_GENERATED_KEYS)) {
+            stmt.setInt(1, collectionId);
+            if (parentId != null) {
+                stmt.setInt(2, parentId);
+            } else {
+                stmt.setNull(2, Types.INTEGER);
+            }
+            stmt.setString(3, item.getName());
+            stmt.setString(4, itemType);
+            stmt.executeUpdate();
+            
+            ResultSet rs = stmt.getGeneratedKeys();
+            if (rs.next()) {
+                itemId = rs.getInt(1);
+            } else {
+                System.err.println("Failed to get generated key for item: " + item.getName());
+                return -1;
+            }
+        } catch (SQLException e) {
+            System.err.println("Error saving item to database: " + e.getMessage());
+            e.printStackTrace();
+            return -1;
+        }
+        
+        // Save item-level variables
+        if (item.getVariable() != null) {
+            saveVariables(conn, collectionId, itemId, item.getVariable());
+        }
+        
+        // If it's a request, save request details
+        if (item.getRequest() != null) {
+            saveRequest(conn, itemId, item.getRequest());
+        }
+        
+        // Recursively save child items
+        if (item.getItem() != null) {
+            for (Item child : item.getItem()) {
+                saveItem(conn, collectionId, itemId, child);
+            }
+        }
+        
+        return itemId;
+    }
+    
+    /**
+     * Saves a request to the database.
+     */
+    private static void saveRequest(Connection conn, int itemId, Request request) {
+        String method = request.getMethod() != null ? request.getMethod() : "";
+        String urlRaw = request.getUrl() != null && request.getUrl().getRaw() != null 
+                ? request.getUrl().getRaw() : "";
+        String urlProtocol = request.getUrl() != null ? request.getUrl().getProtocol() : null;
+        String urlPort = request.getUrl() != null ? request.getUrl().getPort() : null;
+        String bodyMode = request.getBody() != null ? request.getBody().getMode() : null;
+        String bodyRaw = request.getBody() != null ? request.getBody().getRaw() : null;
+        String bodyLanguage = request.getBody() != null && request.getBody().getOptions() != null
+                && request.getBody().getOptions().getRaw() != null
+                ? request.getBody().getOptions().getRaw().getLanguage() : null;
+        
+        // Serialize complex objects to JSON
+        String fullUrlJson = null;
+        String fullBodyJson = null;
+        String fullAuthJson = null;
+        try {
+            fullUrlJson = request.getUrl() != null 
+                    ? objectMapper.writeValueAsString(request.getUrl()) : null;
+            fullBodyJson = request.getBody() != null 
+                    ? objectMapper.writeValueAsString(request.getBody()) : null;
+            fullAuthJson = request.getAuth() != null 
+                    ? objectMapper.writeValueAsString(request.getAuth()) : null;
+        } catch (JsonProcessingException e) {
+            System.err.println("Error serializing request data to JSON: " + e.getMessage());
+            e.printStackTrace();
+            return; // Exit early if serialization fails
+        }
+        
+        // Extract auth details
+        String authType = request.getAuth() != null ? request.getAuth().getType() : null;
+        String authBasicUsername = null;
+        String authBasicPassword = null;
+        String authBearerToken = null;
+        
+        if (request.getAuth() != null) {
+            if ("basic".equalsIgnoreCase(authType) && request.getAuth().getBasic() != null) {
+                for (Credential cred : request.getAuth().getBasic()) {
+                    if ("username".equals(cred.getKey())) {
+                        authBasicUsername = cred.getValue();
+                    } else if ("password".equals(cred.getKey())) {
+                        authBasicPassword = cred.getValue();
+                    }
+                }
+            } else if ("bearer".equalsIgnoreCase(authType) && request.getAuth().getBearer() != null) {
+                for (Credential cred : request.getAuth().getBearer()) {
+                    if ("token".equals(cred.getKey())) {
+                        authBearerToken = cred.getValue();
+                    }
+                }
+            }
+        }
+        
+        // Insert request
+        int requestId = -1;
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "INSERT INTO requests (item_id, method, url_raw, url_protocol, url_port, " +
+                "body_mode, body_raw, body_language, auth_type, auth_basic_username, " +
+                "auth_basic_password, auth_bearer_token, full_url_json, full_body_json, full_auth_json) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                Statement.RETURN_GENERATED_KEYS)) {
+            stmt.setInt(1, itemId);
+            stmt.setString(2, method);
+            stmt.setString(3, urlRaw);
+            stmt.setString(4, urlProtocol);
+            stmt.setString(5, urlPort);
+            stmt.setString(6, bodyMode);
+            stmt.setString(7, bodyRaw);
+            stmt.setString(8, bodyLanguage);
+            stmt.setString(9, authType);
+            stmt.setString(10, authBasicUsername);
+            stmt.setString(11, authBasicPassword);
+            stmt.setString(12, authBearerToken);
+            stmt.setString(13, fullUrlJson);
+            stmt.setString(14, fullBodyJson);
+            stmt.setString(15, fullAuthJson);
+            stmt.executeUpdate();
+            
+            ResultSet rs = stmt.getGeneratedKeys();
+            if (rs.next()) {
+                requestId = rs.getInt(1);
+            } else {
+                System.err.println("Failed to get generated key for request");
+                return;
+            }
+        } catch (SQLException e) {
+            System.err.println("Error saving request to database: " + e.getMessage());
+            e.printStackTrace();
+            return;
+        }
+        
+        // Save headers
+        if (request.getHeader() != null) {
+            int sortOrder = 0;
+            for (Header header : request.getHeader()) {
+                try (PreparedStatement stmt = conn.prepareStatement(
+                        "INSERT INTO headers (request_id, header_key, header_value, disabled, sort_order) " +
+                        "VALUES (?, ?, ?, ?, ?)")) {
+                    stmt.setInt(1, requestId);
+                    stmt.setString(2, header.getKey());
+                    stmt.setString(3, header.getValue());
+                    stmt.setInt(4, header.getDisabled() != null && header.getDisabled() ? 1 : 0);
+                    stmt.setInt(5, sortOrder++);
+                    stmt.executeUpdate();
+                } catch (SQLException e) {
+                    System.err.println("Error saving header to database: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+        }
+        
+        // Save query parameters
+        if (request.getUrl() != null && request.getUrl().getQuery() != null) {
+            int sortOrder = 0;
+            for (Query query : request.getUrl().getQuery()) {
+                try (PreparedStatement stmt = conn.prepareStatement(
+                        "INSERT INTO query_params (request_id, param_key, param_value, sort_order) " +
+                        "VALUES (?, ?, ?, ?)")) {
+                    stmt.setInt(1, requestId);
+                    stmt.setString(2, query.getKey());
+                    stmt.setString(3, query.getValue());
+                    stmt.setInt(4, sortOrder++);
+                    stmt.executeUpdate();
+                } catch (SQLException e) {
+                    System.err.println("Error saving query parameter to database: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+    
+    /**
+     * Saves variables to the database.
+     */
+    private static void saveVariables(Connection conn, Integer collectionId, Integer itemId, 
+                                     List<Variable> variables) {
+        for (Variable variable : variables) {
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO variables (collection_id, item_id, variable_key, variable_value, variable_type) " +
+                    "VALUES (?, ?, ?, ?, ?)")) {
+                if (collectionId != null) {
+                    stmt.setInt(1, collectionId);
+                    stmt.setNull(2, Types.INTEGER);
+                } else {
+                    stmt.setNull(1, Types.INTEGER);
+                    stmt.setInt(2, itemId);
+                }
+                stmt.setString(3, variable.getKey());
+                stmt.setString(4, variable.getValue());
+                stmt.setString(5, variable.getType());
+                stmt.executeUpdate();
+            } catch (SQLException e) {
+                System.err.println("Error saving variable to database: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+    
+    /**
+     * Saves events to the database.
+     */
+    private static void saveEvents(Connection conn, Integer collectionId, Integer itemId, 
+                                  List<Event> events) {
+        for (Event event : events) {
+            String eventJson = null;
+            try {
+                eventJson = objectMapper.writeValueAsString(event);
+            } catch (JsonProcessingException e) {
+                System.err.println("Error serializing event data to JSON: " + e.getMessage());
+                e.printStackTrace();
+                continue; // Skip this event if serialization fails
+            }
+            
+            String eventType = event.getListen() != null ? event.getListen() : null;
+            String scriptType = null;
+            String scriptExec = null;
+            
+            if (event.getScript() != null) {
+                scriptType = event.getScript().getType();
+                if (event.getScript().getExec() != null) {
+                    scriptExec = String.join("\n", event.getScript().getExec());
+                }
+            }
+            
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO events (collection_id, item_id, event_type, script_type, script_exec, full_event_json) " +
+                    "VALUES (?, ?, ?, ?, ?, ?)")) {
+                if (collectionId != null) {
+                    stmt.setInt(1, collectionId);
+                    stmt.setNull(2, Types.INTEGER);
+                } else {
+                    stmt.setNull(1, Types.INTEGER);
+                    stmt.setInt(2, itemId);
+                }
+                stmt.setString(3, eventType);
+                stmt.setString(4, scriptType);
+                stmt.setString(5, scriptExec);
+                stmt.setString(6, eventJson);
+                stmt.executeUpdate();
+            } catch (SQLException e) {
+                System.err.println("Error saving event to database: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+    
+    /**
+     * Gets all collections from the database.
+     * 
+     * @return List of collection IDs and names
+     */
+    public static List<CollectionInfo> getAllCollections() {
+        List<CollectionInfo> collections = new ArrayList<>();
+        Connection conn = LiteConnection.getConnection();
+        
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT id, name FROM collections ORDER BY created_at DESC")) {
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                collections.add(new CollectionInfo(rs.getInt("id"), rs.getString("name")));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting all collections from database: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return collections;
+    }
+    
+    /**
+     * Gets the most recently loaded collection ID.
+     * 
+     * @return The collection ID, or -1 if no collections exist
+     */
+    public static int getLatestCollectionId() {
+        Connection conn = LiteConnection.getConnection();
+        
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT id FROM collections ORDER BY created_at DESC LIMIT 1")) {
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("id");
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting latest collection ID from database: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return -1;
+    }
+    
+    /**
+     * Gets all root items (items with no parent) for a collection.
+     * 
+     * @param collectionId The collection ID
+     * @return List of item IDs and names
+     */
+    public static List<ItemInfo> getRootItems(int collectionId) {
+        List<ItemInfo> items = new ArrayList<>();
+        Connection conn = LiteConnection.getConnection();
+        
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT id, name, item_type FROM items WHERE collection_id = ? AND parent_id IS NULL ORDER BY id")) {
+            stmt.setInt(1, collectionId);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                items.add(new ItemInfo(
+                    rs.getInt("id"),
+                    rs.getString("name"),
+                    rs.getString("item_type")
+                ));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting root items from database: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return items;
+    }
+    
+    /**
+     * Gets all child items for a given parent item.
+     * 
+     * @param parentId The parent item ID
+     * @return List of item IDs and names
+     */
+    public static List<ItemInfo> getChildItems(int parentId) {
+        List<ItemInfo> items = new ArrayList<>();
+        Connection conn = LiteConnection.getConnection();
+        
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT id, name, item_type FROM items WHERE parent_id = ? ORDER BY id")) {
+            stmt.setInt(1, parentId);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                items.add(new ItemInfo(
+                    rs.getInt("id"),
+                    rs.getString("name"),
+                    rs.getString("item_type")
+                ));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting child items from database: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return items;
+    }
+    
+    /**
+     * Gets a request by item ID.
+     * Reconstructs the Request object from database records.
+     * 
+     * @param itemId The item ID
+     * @return The Request object, or null if not found
+     */
+    public static Request getRequestByItemId(int itemId) {
+        Connection conn = LiteConnection.getConnection();
+        
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT * FROM requests WHERE item_id = ?")) {
+            stmt.setInt(1, itemId);
+            ResultSet rs = stmt.executeQuery();
+            
+            if (!rs.next()) {
+                return null;
+            }
+            
+            Request request = new Request();
+            request.setMethod(rs.getString("method"));
+            
+            // Reconstruct URL from JSON or individual fields
+            Url url = null;
+            String fullUrlJson = rs.getString("full_url_json");
+            if (fullUrlJson != null && !fullUrlJson.isEmpty()) {
+                try {
+                    url = objectMapper.readValue(fullUrlJson, Url.class);
+                } catch (Exception e) {
+                    // Fallback to individual fields
+                    url = new Url();
+                    url.setRaw(rs.getString("url_raw"));
+                    url.setProtocol(rs.getString("url_protocol"));
+                    url.setPort(rs.getString("url_port"));
+                }
+            } else {
+                url = new Url();
+                url.setRaw(rs.getString("url_raw"));
+                url.setProtocol(rs.getString("url_protocol"));
+                url.setPort(rs.getString("url_port"));
+            }
+            request.setUrl(url);
+            
+            // Reconstruct Body from JSON or individual fields
+            Body body = null;
+            String fullBodyJson = rs.getString("full_body_json");
+            if (fullBodyJson != null && !fullBodyJson.isEmpty()) {
+                try {
+                    body = objectMapper.readValue(fullBodyJson, Body.class);
+                } catch (Exception e) {
+                    // Fallback to individual fields
+                    body = new Body();
+                    body.setMode(rs.getString("body_mode"));
+                    body.setRaw(rs.getString("body_raw"));
+                }
+            } else {
+                body = new Body();
+                body.setMode(rs.getString("body_mode"));
+                body.setRaw(rs.getString("body_raw"));
+            }
+            request.setBody(body);
+            
+            // Reconstruct Auth from JSON or individual fields
+            Auth auth = null;
+            String fullAuthJson = rs.getString("full_auth_json");
+            if (fullAuthJson != null && !fullAuthJson.isEmpty()) {
+                try {
+                    auth = objectMapper.readValue(fullAuthJson, Auth.class);
+                } catch (Exception e) {
+                    // Fallback to individual fields
+                    auth = reconstructAuth(rs);
+                }
+            } else {
+                auth = reconstructAuth(rs);
+            }
+            request.setAuth(auth);
+            
+            // Load headers
+            int requestId = rs.getInt("id");
+            List<Header> headers = getHeaders(requestId);
+            request.setHeader(headers);
+            
+            // Load query parameters
+            List<Query> queries = getQueryParams(requestId);
+            if (queries != null && !queries.isEmpty() && url != null) {
+                url.setQuery(queries);
+            }
+            
+            return request;
+        } catch (SQLException e) {
+            System.err.println("Error getting request by item ID from database: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        } catch (Exception e) {
+            System.err.println("Error deserializing request data: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+    
+    /**
+     * Reconstructs Auth object from database fields.
+     */
+    private static Auth reconstructAuth(ResultSet rs) {
+        try {
+            String authType = rs.getString("auth_type");
+            if (authType == null) {
+                return null;
+            }
+            
+            Auth auth = new Auth();
+            auth.setType(authType);
+            
+            if ("basic".equalsIgnoreCase(authType)) {
+                List<Credential> basic = new ArrayList<>();
+                String username = rs.getString("auth_basic_username");
+                String password = rs.getString("auth_basic_password");
+                if (username != null) {
+                    Credential cred = new Credential();
+                    cred.setKey("username");
+                    cred.setValue(username);
+                    basic.add(cred);
+                }
+                if (password != null) {
+                    Credential cred = new Credential();
+                    cred.setKey("password");
+                    cred.setValue(password);
+                    basic.add(cred);
+                }
+                auth.setBasic(basic);
+            } else if ("bearer".equalsIgnoreCase(authType)) {
+                List<Credential> bearer = new ArrayList<>();
+                String token = rs.getString("auth_bearer_token");
+                if (token != null) {
+                    Credential cred = new Credential();
+                    cred.setKey("token");
+                    cred.setValue(token);
+                    bearer.add(cred);
+                }
+                auth.setBearer(bearer);
+            }
+            
+            return auth;
+        } catch (SQLException e) {
+            System.err.println("Error reconstructing auth from database: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+    
+    /**
+     * Gets all headers for a request.
+     */
+    private static List<Header> getHeaders(int requestId) {
+        List<Header> headers = new ArrayList<>();
+        Connection conn = LiteConnection.getConnection();
+        
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT header_key, header_value, disabled FROM headers WHERE request_id = ? ORDER BY sort_order")) {
+            stmt.setInt(1, requestId);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                Header header = new Header();
+                header.setKey(rs.getString("header_key"));
+                header.setValue(rs.getString("header_value"));
+                header.setDisabled(rs.getInt("disabled") == 1);
+                headers.add(header);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting headers from database: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return headers;
+    }
+    
+    /**
+     * Gets all query parameters for a request.
+     */
+    private static List<Query> getQueryParams(int requestId) {
+        List<Query> queries = new ArrayList<>();
+        Connection conn = LiteConnection.getConnection();
+        
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT param_key, param_value FROM query_params WHERE request_id = ? ORDER BY sort_order")) {
+            stmt.setInt(1, requestId);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                Query query = new Query();
+                query.setKey(rs.getString("param_key"));
+                query.setValue(rs.getString("param_value"));
+                queries.add(query);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting query parameters from database: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return queries;
+    }
+    
+    /**
+     * Gets the item name by item ID.
+     */
+    public static String getItemName(int itemId) {
+        Connection conn = LiteConnection.getConnection();
+        
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT name FROM items WHERE id = ?")) {
+            stmt.setInt(1, itemId);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getString("name");
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting item name from database: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Gets the item ID by item name within a collection.
+     * Note: This may return multiple results if names are not unique.
+     * For now, returns the first match.
+     */
+    public static int getItemIdByName(int collectionId, String itemName) {
+        Connection conn = LiteConnection.getConnection();
+        
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT id FROM items WHERE collection_id = ? AND name = ? LIMIT 1")) {
+            stmt.setInt(1, collectionId);
+            stmt.setString(2, itemName);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("id");
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting item ID by name from database: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return -1;
+    }
+    
+    /**
+     * Simple data class for collection information.
+     */
+    public static class CollectionInfo {
+        public final int id;
+        public final String name;
+        
+        public CollectionInfo(int id, String name) {
+            this.id = id;
+            this.name = name;
+        }
+    }
+    
+    /**
+     * Simple data class for item information.
+     */
+    public static class ItemInfo {
+        public final int id;
+        public final String name;
+        public final String itemType;
+        
+        public ItemInfo(int id, String name, String itemType) {
+            this.id = id;
+            this.name = name;
+            this.itemType = itemType;
+        }
+    }
+}
+
