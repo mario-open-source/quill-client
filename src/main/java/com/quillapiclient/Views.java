@@ -29,6 +29,9 @@ public class Views {
         requestPanel = new RequestPanel();
         
         setupComponents();
+        
+        // Load all collections from database on startup
+        collectionManager.loadAllCollections();
     }
     
     private void setupComponents() {

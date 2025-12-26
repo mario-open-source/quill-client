@@ -16,14 +16,14 @@ public class CollectionTreeManager {
     private static final ObjectMapper objectMapper = new ObjectMapper();
     
     public CollectionTreeManager() {
-        DefaultMutableTreeNode emptyRoot = new DefaultMutableTreeNode("No collection loaded");
+        DefaultMutableTreeNode emptyRoot = new DefaultMutableTreeNode("Collections");
         tree = new JTree(emptyRoot);
         // Set custom renderer to display methods with colors
         tree.setCellRenderer(new com.quillapiclient.components.MethodTreeCellRenderer());
     }
     
     /**
-     * Loads a Postman collection file, saves it to the database, and builds the UI tree.
+     * Loads a Postman collection file, saves it to the database, and adds it to the UI tree.
      * 
      * @param file The Postman collection JSON file
      */
@@ -37,14 +37,8 @@ public class CollectionTreeManager {
             // Save to database
             currentCollectionId = CollectionDao.saveCollection(postmanCollection, file.getName());
             
-            // Build tree from database
-            DefaultMutableTreeNode rootNode = buildTreeFromDatabase(currentCollectionId, file.getName());
-            
-            DefaultTreeModel model = new DefaultTreeModel(rootNode);
-            tree.setModel(model);
-            
-            TreePath rootPath = new TreePath(rootNode);
-            tree.expandPath(rootPath);
+            // Add collection to tree
+            addCollectionToTree(currentCollectionId, file.getName());
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(null, 
@@ -52,6 +46,65 @@ public class CollectionTreeManager {
                 "Error", 
                 JOptionPane.ERROR_MESSAGE);
         }
+    }
+    
+    /**
+     * Loads all collections from the database and builds the UI tree.
+     */
+    public void loadAllCollections() {
+        java.util.List<CollectionDao.CollectionInfo> collections = CollectionDao.getAllCollections();
+        
+        DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode("Collections");
+        
+        for (CollectionDao.CollectionInfo collectionInfo : collections) {
+            DefaultMutableTreeNode collectionNode = buildTreeFromDatabase(collectionInfo.id, collectionInfo.name);
+            rootNode.add(collectionNode);
+        }
+        
+        DefaultTreeModel model = new DefaultTreeModel(rootNode);
+        tree.setModel(model);
+        
+        // Expand root node
+        TreePath rootPath = new TreePath(rootNode);
+        tree.expandPath(rootPath);
+    }
+    
+    /**
+     * Adds a single collection to the existing tree.
+     * 
+     * @param collectionId The collection ID
+     * @param collectionName The collection name
+     */
+    private void addCollectionToTree(int collectionId, String collectionName) {
+        DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+        DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) model.getRoot();
+        
+        // Check if collection already exists in tree (by collection ID)
+        for (int i = 0; i < rootNode.getChildCount(); i++) {
+            DefaultMutableTreeNode child = (DefaultMutableTreeNode) rootNode.getChildAt(i);
+            if (child.getUserObject() instanceof CollectionRootData) {
+                CollectionRootData rootData = (CollectionRootData) child.getUserObject();
+                if (rootData.collectionId == collectionId) {
+                    // Collection already exists, remove it first
+                    model.removeNodeFromParent(child);
+                    break;
+                }
+            }
+        }
+        
+        // Build the collection tree
+        DefaultMutableTreeNode collectionNode = buildTreeFromDatabase(collectionId, collectionName);
+        
+        // Add to root (insert at beginning to show newest first)
+        model.insertNodeInto(collectionNode, rootNode, 0);
+        
+        // Expand the new collection
+        TreePath collectionPath = new TreePath(collectionNode.getPath());
+        tree.expandPath(collectionPath);
+        
+        // Expand root if not already expanded
+        TreePath rootPath = new TreePath(rootNode);
+        tree.expandPath(rootPath);
     }
     
     /**
@@ -63,7 +116,8 @@ public class CollectionTreeManager {
      * @return The root tree node
      */
     private DefaultMutableTreeNode buildTreeFromDatabase(int collectionId, String collectionName) {
-        DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode(collectionName);
+        // Use CollectionRootData to track collection ID in the root node
+        DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode(new CollectionRootData(collectionId, collectionName));
         
         // Load ALL items for the collection in a single query (solves N+1 problem)
         CollectionDao.CollectionItemsData itemsData = CollectionDao.getAllItemsForCollection(collectionId);
@@ -133,17 +187,41 @@ public class CollectionTreeManager {
         public final String itemName;
         public final String itemType;
         public final String displayName;
+        public final Integer collectionId; // Optional: only set for collection root nodes
         
         public TreeNodeData(int itemId, String itemName, String itemType, String displayName) {
+            this(itemId, itemName, itemType, displayName, null);
+        }
+        
+        public TreeNodeData(int itemId, String itemName, String itemType, String displayName, Integer collectionId) {
             this.itemId = itemId;
             this.itemName = itemName;
             this.itemType = itemType;
             this.displayName = displayName;
+            this.collectionId = collectionId;
         }
         
         @Override
         public String toString() {
             return displayName;
+        }
+    }
+    
+    /**
+     * Data class to store collection root node information.
+     */
+    private static class CollectionRootData {
+        public final int collectionId;
+        public final String collectionName;
+        
+        public CollectionRootData(int collectionId, String collectionName) {
+            this.collectionId = collectionId;
+            this.collectionName = collectionName;
+        }
+        
+        @Override
+        public String toString() {
+            return collectionName;
         }
     }
 }
