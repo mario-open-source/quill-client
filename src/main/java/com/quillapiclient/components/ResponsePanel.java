@@ -14,10 +14,12 @@ public class ResponsePanel {
     private JTextArea responseArea;
     private JLabel statusLabel;
     private JLabel durationLabel;
+    private JLabel sizeLabel;
     private boolean errorState;
     private final String RESPONSE_LABEL = "Response";
-    String STATUS_LABEL = "Status";
-    String DURATION_LABEL = "Duration";
+    private final String STATUS_LABEL = "Status";
+    private final String DURATION_LABEL = "Duration";
+    private final String SIZE_LABEL = "Size";
     
     public ResponsePanel() {
         this.panel = createPanel();
@@ -35,9 +37,10 @@ public class ResponsePanel {
         JPanel rightPanel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT, 10, 0));
         statusLabel = new JLabel(STATUS_LABEL);
         durationLabel = new JLabel(DURATION_LABEL);
+        sizeLabel = new JLabel(SIZE_LABEL);
         rightPanel.add(statusLabel);
         rightPanel.add(durationLabel);
-        
+        rightPanel.add(sizeLabel);
         topPanel.add(responseLabel, BorderLayout.WEST);
         topPanel.add(rightPanel, BorderLayout.EAST);
         
@@ -105,16 +108,24 @@ public class ResponsePanel {
             durationLabel.setText(DURATION_LABEL + ": " + duration + " ms");
         }
     }
-    
+
+    public void setSize(String size) {
+        if (sizeLabel != null) {
+            sizeLabel.setText(SIZE_LABEL + ": " + size);
+        }
+    }
     /**
      * Resets the status and duration labels to their default values.
      */
-    public void resetStatusAndDuration() {
+    public void resetStatusDurationSize() {
         if (statusLabel != null) {
             statusLabel.setText(STATUS_LABEL);
         }
         if (durationLabel != null) {
             durationLabel.setText(DURATION_LABEL);
+        }
+        if (sizeLabel != null) {
+            sizeLabel.setText(SIZE_LABEL);
         }
     }
 }

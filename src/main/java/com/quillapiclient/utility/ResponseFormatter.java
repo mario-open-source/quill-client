@@ -285,7 +285,7 @@ public class ResponseFormatter {
      * @param charCount Character count
      * @return Formatted size string
      */
-    private static String formatSize(int charCount) {
+    public static String formatSize(int charCount) {
         if (charCount < 1024) {
             return charCount + " bytes";
         } else if (charCount < 1024 * 1024) {

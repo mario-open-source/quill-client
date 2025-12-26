@@ -88,7 +88,7 @@ public class Views {
         if (currentItemId <= 0) {
             responsePanel.setResponse("There is no response for this request");
             responsePanel.setErrorState(false);
-            responsePanel.resetStatusAndDuration();
+            responsePanel.resetStatusDurationSize();
             return;
         }
         
@@ -97,7 +97,7 @@ public class Views {
         if (requestId <= 0) {
             responsePanel.setResponse("There is no response for this request");
             responsePanel.setErrorState(false);
-            responsePanel.resetStatusAndDuration();
+            responsePanel.resetStatusDurationSize();
             return;
         }
         
@@ -107,7 +107,7 @@ public class Views {
         if (response == null) {
             responsePanel.setResponse("There is no response for this request");
             responsePanel.setErrorState(false);
-            responsePanel.resetStatusAndDuration();
+            responsePanel.resetStatusDurationSize();
         } else {
             // Format and display the response using the unified formatter
             String formattedResponse = ResponseFormatter.formatResponse(response, "Response");
@@ -116,6 +116,7 @@ public class Views {
             // Update status and duration labels from the response
             responsePanel.setStatus(response.getStatusCode());
             responsePanel.setDuration(response.getDuration());
+            responsePanel.setSize(ResponseFormatter.formatSize(response.getBody().length()));
             
             responsePanel.setErrorState(!response.isSuccess());
         }
