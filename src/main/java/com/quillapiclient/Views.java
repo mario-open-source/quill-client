@@ -9,6 +9,9 @@ import com.quillapiclient.components.ResponsePanel;
 import com.quillapiclient.utility.FileSelectionListener;
 import com.quillapiclient.utility.OpenFileAction;
 import com.quillapiclient.objects.Request;
+import com.quillapiclient.db.CollectionDao;
+import com.quillapiclient.server.ApiResponse;
+import com.quillapiclient.utility.ResponseFormatter;
 
 public class Views {
     private MainWindow mainWindow;
@@ -16,6 +19,7 @@ public class Views {
     private CollectionTreeManager collectionManager;
     private ApiController apiController;
     private ResponsePanel responsePanel;
+    private int currentItemId = -1; // Track the currently selected item ID
     
     public Views() {
         mainWindow = new MainWindow();
@@ -36,6 +40,9 @@ public class Views {
             collectionManager.getTree(), 
             requestCallback
         );
+        
+        // Also track the item ID when a request is selected
+        fileSelectionListener.setItemIdCallback(this::setCurrentItemId);
         
         OpenFileAction.FileChooserCallback importCallback = 
             collectionManager::loadCollectionFile;
@@ -62,6 +69,45 @@ public class Views {
     
     private void handleRequestSelection(Request request) {
         requestPanel.populateFromRequest(request);
+        // Load and display the response for this request
+        loadAndDisplayResponse();
+    }
+    
+    private void setCurrentItemId(int itemId) {
+        this.currentItemId = itemId;
+    }
+    
+    /**
+     * Loads and displays the response for the currently selected request.
+     * Shows "There is no response for this request" if no response exists.
+     */
+    private void loadAndDisplayResponse() {
+        if (currentItemId <= 0) {
+            responsePanel.setResponse("There is no response for this request");
+            responsePanel.setErrorState(false);
+            return;
+        }
+        
+        // Get the request ID from the item ID
+        int requestId = CollectionDao.getRequestIdByItemId(currentItemId);
+        if (requestId <= 0) {
+            responsePanel.setResponse("There is no response for this request");
+            responsePanel.setErrorState(false);
+            return;
+        }
+        
+        // Get the latest response for this request
+        ApiResponse response = CollectionDao.getLatestResponseByRequestId(requestId);
+        
+        if (response == null) {
+            responsePanel.setResponse("There is no response for this request");
+            responsePanel.setErrorState(false);
+        } else {
+            // Format and display the response using the unified formatter
+            String formattedResponse = ResponseFormatter.formatResponse(response, "Response");
+            responsePanel.setResponse(formattedResponse);
+            responsePanel.setErrorState(!response.isSuccess());
+        }
     }
     
     private void executeApiCall() {
@@ -78,9 +124,9 @@ public class Views {
         String password = requestPanel.getAuthPanel().getPassword();
         String token = requestPanel.getAuthPanel().getToken();
         
-        // Execute the API call through the controller
+        // Execute the API call through the controller, passing the current item ID
         apiController.executeApiCall(url, method, headersText, bodyText, 
-                                   authType, username, password, token, paramsText);
+                                   authType, username, password, token, paramsText, currentItemId);
     }
     
     public void show() {

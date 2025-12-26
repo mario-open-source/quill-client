@@ -141,6 +141,33 @@ public class DatabaseSchema {
                 )
             """);
             
+            // Create responses table (stores API call responses)
+            // Linked to requests via request_id
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS responses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    request_id INTEGER NOT NULL,
+                    status_code INTEGER NOT NULL,
+                    body TEXT,
+                    duration INTEGER,
+                    full_response_json TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE
+                )
+            """);
+            
+            // Create response_headers table (one-to-many with responses)
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS response_headers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    response_id INTEGER NOT NULL,
+                    header_key TEXT NOT NULL,
+                    header_value TEXT,
+                    sort_order INTEGER DEFAULT 0,
+                    FOREIGN KEY (response_id) REFERENCES responses(id) ON DELETE CASCADE
+                )
+            """);
+            
             // Create indexes for frequently queried fields
             createIndexes(stmt);
             
@@ -189,6 +216,15 @@ public class DatabaseSchema {
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_events_collection_id ON events(collection_id)");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_events_item_id ON events(item_id)");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type)");
+        
+        // Response lookups (most frequently accessed)
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_responses_request_id ON responses(request_id)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_responses_status_code ON responses(status_code)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_responses_created_at ON responses(created_at DESC)");
+        
+        // Response header lookups
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_response_headers_response_id ON response_headers(response_id)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_response_headers_key ON response_headers(header_key)");
     }
     
     /**
@@ -236,6 +272,7 @@ public class DatabaseSchema {
                 stmt.executeQuery("SELECT 1 FROM collections LIMIT 1");
                 stmt.executeQuery("SELECT 1 FROM items LIMIT 1");
                 stmt.executeQuery("SELECT 1 FROM requests LIMIT 1");
+                stmt.executeQuery("SELECT 1 FROM responses LIMIT 1");
                 return true;
             }
         } catch (SQLException e) {
@@ -252,6 +289,8 @@ public class DatabaseSchema {
         Connection conn = LiteConnection.getConnection();
         try (Statement stmt = conn.createStatement()) {
             // Drop in reverse order of dependencies
+            stmt.execute("DROP TABLE IF EXISTS response_headers");
+            stmt.execute("DROP TABLE IF EXISTS responses");
             stmt.execute("DROP TABLE IF EXISTS events");
             stmt.execute("DROP TABLE IF EXISTS variables");
             stmt.execute("DROP TABLE IF EXISTS query_params");

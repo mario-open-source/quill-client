@@ -3,11 +3,12 @@ package com.quillapiclient.controller;
 import com.quillapiclient.server.ApiCallBuilder;
 import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.components.ResponsePanel;
+import com.quillapiclient.db.CollectionDao;
+import com.quillapiclient.utility.ResponseFormatter;
 
 import javax.swing.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -23,7 +24,7 @@ public class ApiController {
     
     public void executeApiCall(String url, String method, String headersText, 
                               String bodyText, String authType, String username, 
-                              String password, String token, String paramsText) {
+                              String password, String token, String paramsText, int itemId) {
         if (url.isEmpty()) {
             responsePanel.setResponse("Error: URL cannot be empty");
             return;
@@ -45,6 +46,14 @@ public class ApiController {
                 // Calculate duration and set it on the response
                 long duration = System.currentTimeMillis() - startTime;
                 response.setDuration(duration);
+
+                // Save response to database if we have a valid item ID
+                if (itemId > 0) {
+                    int requestId = CollectionDao.getRequestIdByItemId(itemId);
+                    if (requestId > 0) {
+                        CollectionDao.saveResponse(response, requestId);
+                    }
+                }
 
                 SwingUtilities.invokeLater(() ->
                     displayResponse(response)
@@ -87,96 +96,11 @@ public class ApiController {
     }
     
     private void displayResponse(ApiResponse response) {
-        StringBuilder responseText = new StringBuilder();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
-        String timestamp = LocalDateTime.now().format(formatter);
-        
-        // Response header
-        responseText.append("[").append(timestamp).append("] Response received\n");
-        responseText.append("═".repeat(60)).append("\n");
-        
-        // Status code with visual indicator
-        responseText.append("STATUS: ");
-        int statusCode = response.getStatusCode();
-        if (response.isSuccess()) {
-            responseText.append("SUCCESS");
-        } else if (statusCode >= 400 && statusCode < 500) {
-            responseText.append("WARNING");
-        } else {
-            responseText.append("ERROR");
-        }
-        responseText.append(statusCode).append(" ").append(getStatusText(statusCode));
-        responseText.append(" (").append(response.getDuration()).append(" ms)\n\n");
-        
-        // Headers section
-        if (response.getHeaders() != null && !response.getHeaders().isEmpty()) {
-            responseText.append("HEADERS (").append(response.getHeaders().size()).append("):\n");
-            responseText.append("-".repeat(40)).append("\n");
-            
-            for (Map.Entry<String, java.util.List<String>> entry : response.getHeaders().entrySet()) {
-                String key = entry.getKey();
-                String values = String.join(", ", entry.getValue());
-                
-                // Color code common headers
-                if (key.toLowerCase().contains("content-type")) {
-                    responseText.append("CONTENT-TYPE: ");
-                } else if (key.toLowerCase().contains("authorization") || 
-                          key.toLowerCase().contains("token")) {
-                    responseText.append("AUTHORIZATION: ");
-                } else if (key.toLowerCase().contains("cache")) {
-                    responseText.append("CACHE: ");
-                } else if (key.toLowerCase().contains("cookie")) {
-                    responseText.append("COOKIE: ");
-                } else {
-                    responseText.append("OTHER: ");
-                }
-                
-                responseText.append(key).append(": ").append(values).append("\n");
-            }
-            responseText.append("\n");
-        }
-        
-        // Body section
-        if (response.getBody() != null && !response.getBody().isEmpty()) {
-            String body = response.getBody();
-            responseText.append("BODY (").append(body.length()).append(" chars):\n");
-            responseText.append("-".repeat(40)).append("\n");
-            
-            // Try to format JSON if possible
-            if (isJson(body)) {
-                responseText.append(formatJson(body));
-            } else if (isXml(body)) {
-                responseText.append(formatXml(body));
-            } else if (isHtml(body)) {
-                responseText.append("<!DOCTYPE html>\n<!-- HTML Content (truncated) -->\n");
-                responseText.append(truncateText(body, 2000)); // Truncate long HTML
-            } else {
-                responseText.append(truncateText(body, 5000)); // Truncate other content
-            }
-            
-            // Add download/export option for large responses
-            if (body.length() > 10000) {
-                responseText.append("\n\nNote: Response is large (")
-                           .append(body.length())
-                           .append(" chars). Consider exporting to a file.");
-            }
-        } else {
-            responseText.append("BODY: (empty)\n");
-        }
-        
-        // Add request summary at the end
-        responseText.append("\n").append("═".repeat(60)).append("\n");
-        responseText.append("SUMMARY:\n");
-        responseText.append("  • Status: ").append(statusCode)
-                   .append(" (").append(response.isSuccess() ? "Success" : "Error").append(")\n");
-        responseText.append("  • Time: ").append(response.getDuration()).append(" ms\n");
-        
-        if (response.getBody() != null) {
-            responseText.append("  • Size: ").append(formatSize(response.getBody().length())).append("\n");
-        }
+        // Use the unified ResponseFormatter utility
+        String formattedResponse = ResponseFormatter.formatResponse(response, "Response received");
         
         // Update the response panel
-        responsePanel.setResponse(responseText.toString());
+        responsePanel.setResponse(formattedResponse);
         
         // If there's an error status, show it more prominently
         if (!response.isSuccess()) {
@@ -255,130 +179,4 @@ public class ApiController {
         responsePanel.setErrorState(true);
     }
     
-    // Helper methods
-    private String getStatusText(int statusCode) {
-        switch (statusCode) {
-            case 200: return "OK";
-            case 201: return "Created";
-            case 204: return "No Content";
-            case 400: return "Bad Request";
-            case 401: return "Unauthorized";
-            case 403: return "Forbidden";
-            case 404: return "Not Found";
-            case 500: return "Internal Server Error";
-            case 502: return "Bad Gateway";
-            case 503: return "Service Unavailable";
-            default: return "";
-        }
-    }
-    
-    private boolean isJson(String text) {
-        if (text == null || text.trim().isEmpty()) return false;
-        String trimmed = text.trim();
-        return (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-               (trimmed.startsWith("[") && trimmed.endsWith("]"));
-    }
-    
-    private boolean isXml(String text) {
-        if (text == null || text.trim().isEmpty()) return false;
-        String trimmed = text.trim();
-        return trimmed.startsWith("<?xml") || 
-               (trimmed.startsWith("<") && trimmed.endsWith(">"));
-    }
-    
-    private boolean isHtml(String text) {
-        if (text == null || text.trim().isEmpty()) return false;
-        String trimmed = text.trim().toLowerCase();
-        return trimmed.startsWith("<!doctype html") ||
-               trimmed.contains("<html") ||
-               trimmed.contains("<body");
-    }
-    
-    private String formatJson(String json) {
-        try {
-            // Simple indentation for JSON
-            int indentLevel = 0;
-            StringBuilder formatted = new StringBuilder();
-            boolean inQuotes = false;
-            
-            for (char c : json.toCharArray()) {
-                if (c == '\"' && (formatted.length() == 0 || formatted.charAt(formatted.length() - 1) != '\\')) {
-                    inQuotes = !inQuotes;
-                }
-                
-                if (!inQuotes) {
-                    if (c == '{' || c == '[') {
-                        formatted.append(c).append("\n");
-                        indentLevel++;
-                        formatted.append(getIndent(indentLevel));
-                    } else if (c == '}' || c == ']') {
-                        formatted.append("\n");
-                        indentLevel--;
-                        formatted.append(getIndent(indentLevel));
-                        formatted.append(c);
-                    } else if (c == ',') {
-                        formatted.append(c).append("\n");
-                        formatted.append(getIndent(indentLevel));
-                    } else if (c == ':') {
-                        formatted.append(c).append(" ");
-                    } else {
-                        formatted.append(c);
-                    }
-                } else {
-                    formatted.append(c);
-                }
-            }
-            return formatted.toString();
-        } catch (Exception e) {
-            return json; // Return original if formatting fails
-        }
-    }
-    
-    private String formatXml(String xml) {
-        try {
-            // Simple XML formatting
-            StringBuilder formatted = new StringBuilder();
-            int indentLevel = 0;
-            
-            String[] lines = xml.replaceAll("><", ">\n<").split("\n");
-            for (String line : lines) {
-                String trimmed = line.trim();
-                if (trimmed.isEmpty()) continue;
-                
-                if (trimmed.startsWith("</")) {
-                    indentLevel--;
-                }
-                
-                formatted.append(getIndent(indentLevel)).append(trimmed).append("\n");
-                
-                if (trimmed.startsWith("<") && !trimmed.startsWith("</") && 
-                    !trimmed.endsWith("/>") && !trimmed.contains("?>")) {
-                    indentLevel++;
-                }
-            }
-            return formatted.toString();
-        } catch (Exception e) {
-            return xml; // Return original if formatting fails
-        }
-    }
-    
-    private String truncateText(String text, int maxLength) {
-        if (text.length() <= maxLength) return text;
-        return text.substring(0, maxLength) + "\n\n... [Content truncated. " + 
-               (text.length() - maxLength) + " more characters]";
-    }
-    
-    private String getIndent(int level) {
-        return "  ".repeat(Math.max(0, level));
-    }
-    
-    private String formatSize(int charCount) {
-        if (charCount < 1024) {
-            return charCount + " bytes";
-        } else if (charCount < 1024 * 1024) {
-            return String.format("%.1f KB", charCount / 1024.0);
-        } else {
-            return String.format("%.1f MB", charCount / (1024.0 * 1024.0));
-        }
-    }
 }

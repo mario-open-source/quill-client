@@ -12,6 +12,7 @@ import com.quillapiclient.objects.Request;
 public class FileSelectionListener implements TreeSelectionListener {
     private JTree jTree;
     private RequestSelectionCallback callback;
+    private ItemIdCallback itemIdCallback;
 
     /**
      * Callback interface for handling request selection
@@ -20,10 +21,22 @@ public class FileSelectionListener implements TreeSelectionListener {
     public interface RequestSelectionCallback {
         void onRequestSelected(Request request);
     }
+    
+    /**
+     * Callback interface for tracking item ID
+     */
+    @FunctionalInterface
+    public interface ItemIdCallback {
+        void onItemIdSelected(int itemId);
+    }
 
     public FileSelectionListener(JTree jTree, RequestSelectionCallback callback) {
         this.jTree = jTree;
         this.callback = callback;
+    }
+    
+    public void setItemIdCallback(ItemIdCallback itemIdCallback) {
+        this.itemIdCallback = itemIdCallback;
     }
 
     @Override
@@ -45,6 +58,11 @@ public class FileSelectionListener implements TreeSelectionListener {
         // Only process requests, not folders
         if (!"request".equals(nodeData.itemType)) {
             return;
+        }
+        
+        // Notify about item ID selection
+        if (itemIdCallback != null) {
+            itemIdCallback.onItemIdSelected(nodeData.itemId);
         }
         
         // Query the database for the request
