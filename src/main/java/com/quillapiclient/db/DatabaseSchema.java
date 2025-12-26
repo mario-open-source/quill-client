@@ -34,6 +34,7 @@ public class DatabaseSchema {
                     name TEXT NOT NULL,
                     schema_version TEXT,
                     exporter_id TEXT,
+                    description TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )

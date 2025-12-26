@@ -13,6 +13,7 @@ public class Info {
     private String schema;
     @JsonProperty("_exporter_id")
     private String exporterId;
+    private String description;
 
     // Getters and Setters
     public String getPostmanId() { return postmanId; }
@@ -23,4 +24,6 @@ public class Info {
     public void setSchema(String schema) { this.schema = schema; }
     public String getExporterId() { return exporterId; }
     public void setExporterId(String exporterId) { this.exporterId = exporterId; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 }

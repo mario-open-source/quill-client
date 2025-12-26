@@ -42,6 +42,7 @@ public class CollectionDao {
             String collectionName = (info != null && info.getName() != null) ? info.getName() : fileName;
             String schemaVersion = info != null ? info.getSchema() : null;
             String exporterId = info != null ? info.getExporterId() : null;
+            String description = info != null ? info.getDescription() : null;
             
             // Check if collection already exists
             int collectionId;
@@ -64,12 +65,13 @@ public class CollectionDao {
             
             // Insert collection
             try (PreparedStatement stmt = conn.prepareStatement(
-                    "INSERT INTO collections (postman_id, name, schema_version, exporter_id) VALUES (?, ?, ?, ?)",
+                    "INSERT INTO collections (postman_id, name, schema_version, exporter_id, description) VALUES (?, ?, ?, ?, ?)",
                     Statement.RETURN_GENERATED_KEYS)) {
                 stmt.setString(1, postmanId);
                 stmt.setString(2, collectionName);
                 stmt.setString(3, schemaVersion);
                 stmt.setString(4, exporterId);
+                stmt.setString(5, description);
                 stmt.executeUpdate();
                 
                 ResultSet rs = stmt.getGeneratedKeys();
