@@ -7,6 +7,7 @@ import java.awt.event.ActionListener;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTree;
 import javax.swing.event.TreeSelectionListener;
 
@@ -49,7 +50,13 @@ public class LeftPanel {
         jTree.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         jTree.addTreeSelectionListener(selectionListener);
 
-        panel.add(jTree);
+        // Wrap the tree in a scroll pane to enable scrolling when it becomes too large
+        JScrollPane scrollPane = new JScrollPane(jTree);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setPreferredSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        
+        panel.add(scrollPane);
 
         return panel;
     }

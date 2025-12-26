@@ -23,7 +23,7 @@ public class MainWindow {
         verticalSplitPane.setContinuousLayout(true);
 
         horizontalSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, verticalSplitPane);
-        horizontalSplitPane.setDividerLocation(250);
+        horizontalSplitPane.setDividerLocation(350);
         horizontalSplitPane.setContinuousLayout(true);
 
         frame.getContentPane().add(horizontalSplitPane);
