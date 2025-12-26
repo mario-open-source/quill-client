@@ -6,6 +6,7 @@ import javax.swing.UIManager;
 import com.formdev.flatlaf.FlatDarculaLaf;
 import com.quillapiclient.db.LiteConnection;
 import com.quillapiclient.utility.AppColorTheme;
+import com.quillapiclient.controller.ApiController;
 
 public class Main {
     public static void main(String[] args) {
@@ -31,8 +32,12 @@ public class Main {
             ex.printStackTrace();
         }
         
-        // Add shutdown hook to close database connection
+        // Add shutdown hook to gracefully shut down resources
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            // Shutdown executor service gracefully (wait up to 5 seconds)
+            ApiController.shutdownGracefully(5);
+            
+            // Close database connection
             LiteConnection.closeConnection();
         }));
         

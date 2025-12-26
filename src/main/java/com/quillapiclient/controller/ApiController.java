@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class ApiController {
     private ResponsePanel responsePanel;
@@ -177,6 +178,61 @@ public class ApiController {
         // Update the response panel
         responsePanel.setResponse(errorBuilder.toString());
         responsePanel.setErrorState(true);
+    }
+    
+    /**
+     * Shuts down the executor service gracefully.
+     * Waits for running tasks to complete, then terminates.
+     * 
+     * @param timeoutSeconds Maximum time to wait for tasks to complete
+     * @return true if shutdown completed, false if timeout occurred
+     */
+    public static boolean shutdownGracefully(long timeoutSeconds) {
+        executorService.shutdown();
+        try {
+            if (!executorService.awaitTermination(timeoutSeconds, TimeUnit.SECONDS)) {
+                // Timeout occurred, force shutdown
+                executorService.shutdownNow();
+                // Wait a bit more for forced shutdown
+                if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+                    System.err.println("ExecutorService did not terminate");
+                    return false;
+                }
+            }
+            return true;
+        } catch (InterruptedException e) {
+            // Thread was interrupted, force shutdown
+            executorService.shutdownNow();
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+    
+    /**
+     * Shuts down the executor service gracefully with default timeout (10 seconds).
+     * 
+     * @return true if shutdown completed, false if timeout occurred
+     */
+    public static boolean shutdownGracefully() {
+        return shutdownGracefully(10);
+    }
+    
+    /**
+     * Immediately shuts down the executor service.
+     * Attempts to stop all actively executing tasks and halts processing.
+     * 
+     * @return List of tasks that were awaiting execution
+     */
+    public static java.util.List<Runnable> shutdownNow() {
+        return executorService.shutdownNow();
+    }
+    
+    /**
+     * Initiates shutdown but does not wait for completion.
+     * Use shutdownGracefully() for proper shutdown.
+     */
+    public static void shutdown() {
+        executorService.shutdown();
     }
     
 }

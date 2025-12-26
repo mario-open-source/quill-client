@@ -969,6 +969,124 @@ public class CollectionDao {
     }
     
     /**
+     * Gets all items for a collection in a single query.
+     * This is much more efficient than querying recursively (solves N+1 problem).
+     * 
+     * @param collectionId The collection ID
+     * @return CollectionItemsData containing all items, relationships, and request methods
+     */
+    public static CollectionItemsData getAllItemsForCollection(int collectionId) {
+        Map<Integer, ItemInfo> itemsMap = new HashMap<>();
+        Map<Integer, List<Integer>> childrenMap = new HashMap<>();
+        Map<Integer, String> requestMethodsMap = new HashMap<>();
+        java.util.Set<Integer> childItemIds = new java.util.HashSet<>(); // Track which items are children
+        
+        Connection conn = LiteConnection.getConnection();
+        
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT i.id, i.name, i.item_type, i.parent_id, r.method " +
+                "FROM items i " +
+                "LEFT JOIN requests r ON i.id = r.item_id " +
+                "WHERE i.collection_id = ? ORDER BY i.id")) {
+            stmt.setInt(1, collectionId);
+            ResultSet rs = stmt.executeQuery();
+            
+            while (rs.next()) {
+                int itemId = rs.getInt("id");
+                String name = rs.getString("name");
+                String itemType = rs.getString("item_type");
+                Integer parentId = rs.getObject("parent_id") != null ? rs.getInt("parent_id") : null;
+                String method = rs.getString("method");
+                
+                // Store item info
+                itemsMap.put(itemId, new ItemInfo(itemId, name, itemType));
+                
+                // Store request method if available
+                if (method != null && !method.isEmpty()) {
+                    requestMethodsMap.put(itemId, method.toUpperCase());
+                }
+                
+                // Build parent-child relationship map
+                if (parentId != null) {
+                    childrenMap.computeIfAbsent(parentId, k -> new ArrayList<>()).add(itemId);
+                    childItemIds.add(itemId); // Mark this item as a child
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting all items for collection from database: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return new CollectionItemsData(itemsMap, childrenMap, requestMethodsMap, childItemIds);
+    }
+    
+    /**
+     * Data class containing all items for a collection.
+     * Provides efficient in-memory access to avoid N+1 query problems.
+     */
+    public static class CollectionItemsData {
+        public final Map<Integer, ItemInfo> itemsMap; // itemId -> ItemInfo
+        public final Map<Integer, List<Integer>> childrenMap; // parentId -> list of child itemIds
+        public final Map<Integer, String> requestMethodsMap; // itemId -> HTTP method (only for requests)
+        private final java.util.Set<Integer> childItemIds; // Set of all item IDs that are children
+        
+        public CollectionItemsData(Map<Integer, ItemInfo> itemsMap, 
+                                  Map<Integer, List<Integer>> childrenMap,
+                                  Map<Integer, String> requestMethodsMap,
+                                  java.util.Set<Integer> childItemIds) {
+            this.itemsMap = itemsMap;
+            this.childrenMap = childrenMap;
+            this.requestMethodsMap = requestMethodsMap;
+            this.childItemIds = childItemIds;
+        }
+        
+        /**
+         * Gets root items (items with no parent).
+         * Root items are those that are not in the childItemIds set.
+         */
+        public List<ItemInfo> getRootItems() {
+            List<ItemInfo> rootItems = new ArrayList<>();
+            for (ItemInfo item : itemsMap.values()) {
+                // Root items are those that are not children of any other item
+                if (!childItemIds.contains(item.id)) {
+                    rootItems.add(item);
+                }
+            }
+            // Sort by ID for consistent ordering
+            rootItems.sort((a, b) -> Integer.compare(a.id, b.id));
+            return rootItems;
+        }
+        
+        /**
+         * Gets child items for a given parent item ID.
+         */
+        public List<ItemInfo> getChildItems(int parentId) {
+            List<Integer> childIds = childrenMap.get(parentId);
+            if (childIds == null || childIds.isEmpty()) {
+                return new ArrayList<>();
+            }
+            
+            List<ItemInfo> childItems = new ArrayList<>();
+            for (Integer childId : childIds) {
+                ItemInfo child = itemsMap.get(childId);
+                if (child != null) {
+                    childItems.add(child);
+                }
+            }
+            // Sort by ID for consistent ordering
+            childItems.sort((a, b) -> Integer.compare(a.id, b.id));
+            return childItems;
+        }
+        
+        /**
+         * Gets the HTTP method for a request item.
+         */
+        public String getRequestMethod(int itemId) {
+            return requestMethodsMap.get(itemId);
+        }
+    }
+    
+    /**
      * Simple data class for item information.
      */
     public static class ItemInfo {

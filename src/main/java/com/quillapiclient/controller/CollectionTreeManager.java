@@ -56,6 +56,7 @@ public class CollectionTreeManager {
     
     /**
      * Builds the tree structure from the database for the given collection.
+     * Uses batch loading to avoid N+1 query problem.
      * 
      * @param collectionId The collection ID in the database
      * @param collectionName The name to display as root
@@ -64,31 +65,36 @@ public class CollectionTreeManager {
     private DefaultMutableTreeNode buildTreeFromDatabase(int collectionId, String collectionName) {
         DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode(collectionName);
         
-        // Get root items (items with no parent)
-        java.util.List<CollectionDao.ItemInfo> rootItems = CollectionDao.getRootItems(collectionId);
+        // Load ALL items for the collection in a single query (solves N+1 problem)
+        CollectionDao.CollectionItemsData itemsData = CollectionDao.getAllItemsForCollection(collectionId);
         
-        // Build tree nodes recursively
+        // Get root items (items with no parent)
+        java.util.List<CollectionDao.ItemInfo> rootItems = itemsData.getRootItems();
+        
+        // Build tree nodes recursively using in-memory data
         for (CollectionDao.ItemInfo itemInfo : rootItems) {
-            rootNode.add(buildNodeFromDatabase(itemInfo));
+            rootNode.add(buildNodeFromMemory(itemInfo, itemsData));
         }
         
         return rootNode;
     }
     
     /**
-     * Recursively builds a tree node from database item information.
+     * Recursively builds a tree node from in-memory item data.
+     * This avoids multiple database queries by using pre-loaded data.
      * 
-     * @param itemInfo The item information from database
+     * @param itemInfo The item information
+     * @param itemsData The collection items data (contains all items and relationships)
      * @return The tree node
      */
-    private DefaultMutableTreeNode buildNodeFromDatabase(CollectionDao.ItemInfo itemInfo) {
+    private DefaultMutableTreeNode buildNodeFromMemory(CollectionDao.ItemInfo itemInfo, 
+                                                       CollectionDao.CollectionItemsData itemsData) {
         String displayName = itemInfo.name;
         
-        // If this item is a request, get the method and append it to the name
+        // If this item is a request, get the method from the pre-loaded map
         if ("request".equals(itemInfo.itemType)) {
-            com.quillapiclient.objects.Request request = CollectionDao.getRequestByItemId(itemInfo.id);
-            if (request != null && request.getMethod() != null) {
-                String method = request.getMethod().toUpperCase();
+            String method = itemsData.getRequestMethod(itemInfo.id);
+            if (method != null && !method.isEmpty()) {
                 displayName = displayName + " [" + method + "]";
             }
         }
@@ -97,10 +103,10 @@ public class CollectionTreeManager {
         TreeNodeData nodeData = new TreeNodeData(itemInfo.id, itemInfo.name, itemInfo.itemType, displayName);
         DefaultMutableTreeNode node = new DefaultMutableTreeNode(nodeData);
         
-        // Get child items and build recursively
-        java.util.List<CollectionDao.ItemInfo> childItems = CollectionDao.getChildItems(itemInfo.id);
+        // Get child items from in-memory map (no database query!)
+        java.util.List<CollectionDao.ItemInfo> childItems = itemsData.getChildItems(itemInfo.id);
         for (CollectionDao.ItemInfo childInfo : childItems) {
-            node.add(buildNodeFromDatabase(childInfo));
+            node.add(buildNodeFromMemory(childInfo, itemsData));
         }
         
         return node;
