@@ -1,5 +1,8 @@
 package com.quillapiclient.server;
 
+import com.quillapiclient.db.CollectionDao;
+import com.quillapiclient.utility.VariableReplacer;
+
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.URI;
@@ -26,6 +29,7 @@ public class ApiCallBuilder {
     private String password;
     private String token;
     private Map<String, String> queryParams;
+    private Map<String, String> variables; // Variables for replacement
     private static final int DEFAULT_TIMEOUT_SECONDS = 30;
     
     private static final HttpClient httpClient = HttpClient.newBuilder()
@@ -105,6 +109,18 @@ public class ApiCallBuilder {
         return this;
     }
     
+    /**
+     * Sets variables for replacement in URLs and other fields.
+     * Variables are replaced in the format {{variableName}}.
+     * 
+     * @param variables Map of variable names to values
+     * @return This builder for method chaining
+     */
+    public ApiCallBuilder variables(Map<String, String> variables) {
+        this.variables = variables;
+        return this;
+    }
+    
     // Parse headers from text (format: "Key: Value\nKey2: Value2")
     private void parseHeaders(String headersText) {
         String[] lines = headersText.split("\n");
@@ -153,13 +169,17 @@ public class ApiCallBuilder {
         }
     }
     
-    // Build the full URL with query parameters
+    // Build the full URL with query parameters and variable replacement
     private String buildUrl() {
         if (url == null || url.trim().isEmpty()) {
             return null;
         }
         
+        // Replace variables in the URL first
         String fullUrl = url.trim();
+        if (variables != null && !variables.isEmpty()) {
+            fullUrl = VariableReplacer.replaceVariables(fullUrl, variables);
+        }
         
         try {
         if (!queryParams.isEmpty()) {
@@ -172,9 +192,18 @@ public class ApiCallBuilder {
                 } else {
                     queryString.append("&");
                 }
-                queryString.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8))
+                
+                // Replace variables in query parameter keys and values
+                String paramKey = entry.getKey();
+                String paramValue = entry.getValue();
+                if (variables != null && !variables.isEmpty()) {
+                    paramKey = VariableReplacer.replaceVariables(paramKey, variables);
+                    paramValue = VariableReplacer.replaceVariables(paramValue, variables);
+                }
+                
+                queryString.append(URLEncoder.encode(paramKey, StandardCharsets.UTF_8))
                           .append("=")
-                          .append(URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8));
+                          .append(URLEncoder.encode(paramValue, StandardCharsets.UTF_8));
             }
 
             fullUrl += queryString.toString();
@@ -182,7 +211,7 @@ public class ApiCallBuilder {
         } catch (Exception e) {
             return null;
         }
-        
+        System.out.println(fullUrl);
         return fullUrl;
     }
     
@@ -330,20 +359,32 @@ public class ApiCallBuilder {
      *     userField.getText(),
      *     passField.getText(),
      *     tokenField.getText(),
-     *     paramsTextArea.getText()
+     *     paramsTextArea.getText(),
+     *     itemId
      * ).execute();
      * </pre>
+     * 
+     * @param itemId The item ID to retrieve variables for (use -1 if not available)
      */
     public static ApiCallBuilder fromUI(String url, String method, String headersText, 
                                         String bodyText, String authType, 
                                         String username, String password, String token,
-                                        String queryParamsText) {
+                                        String queryParamsText, int itemId) {
         ApiCallBuilder builder = new ApiCallBuilder()
                 .url(url)
                 .method(method)
                 .headers(headersText)
                 .body(bodyText)
                 .queryParams(queryParamsText);
+        
+        // Load variables from database if itemId is provided
+        if (itemId > 0) {
+            int collectionId = CollectionDao.getCollectionIdByItemId(itemId);
+            Map<String, String> variables = CollectionDao.getAllVariablesForRequest(collectionId, itemId);
+            if (!variables.isEmpty()) {
+                builder.variables(variables);
+            }
+        }
         
         // Set authentication
         if (authType != null) {

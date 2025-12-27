@@ -1102,5 +1102,117 @@ public class CollectionDao {
             this.itemType = itemType;
         }
     }
+    
+    /**
+     * Gets all variables for a collection (collection-level variables).
+     * 
+     * @param collectionId The collection ID
+     * @return Map of variable names to values, or empty map if none found
+     */
+    public static Map<String, String> getCollectionVariables(int collectionId) {
+        Map<String, String> variables = new HashMap<>();
+        Connection conn = LiteConnection.getConnection();
+        
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT variable_key, variable_value FROM variables WHERE collection_id = ?")) {
+            stmt.setInt(1, collectionId);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    String key = rs.getString("variable_key");
+                    String value = rs.getString("variable_value");
+                    if (key != null) {
+                        variables.put(key, value != null ? value : "");
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error retrieving collection variables: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return variables;
+    }
+    
+    /**
+     * Gets all variables for an item (item-level variables).
+     * 
+     * @param itemId The item ID
+     * @return Map of variable names to values, or empty map if none found
+     */
+    public static Map<String, String> getItemVariables(int itemId) {
+        Map<String, String> variables = new HashMap<>();
+        Connection conn = LiteConnection.getConnection();
+        
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT variable_key, variable_value FROM variables WHERE item_id = ?")) {
+            stmt.setInt(1, itemId);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    String key = rs.getString("variable_key");
+                    String value = rs.getString("variable_value");
+                    if (key != null) {
+                        variables.put(key, value != null ? value : "");
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error retrieving item variables: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return variables;
+    }
+    
+    /**
+     * Gets all variables for a request, combining collection-level and item-level variables.
+     * Item-level variables take precedence over collection-level variables if there's a conflict.
+     * 
+     * @param collectionId The collection ID
+     * @param itemId The item ID (can be -1 if not available)
+     * @return Map of variable names to values (item-level variables override collection-level)
+     */
+    public static Map<String, String> getAllVariablesForRequest(int collectionId, int itemId) {
+        Map<String, String> variables = new HashMap<>();
+        
+        // First, get collection-level variables
+        if (collectionId > 0) {
+            variables.putAll(getCollectionVariables(collectionId));
+        }
+        
+        // Then, get item-level variables (these will override collection-level if same key)
+        if (itemId > 0) {
+            variables.putAll(getItemVariables(itemId));
+        }
+        
+        return variables;
+    }
+    
+    /**
+     * Gets the collection ID for a given item ID.
+     * 
+     * @param itemId The item ID
+     * @return The collection ID, or -1 if not found
+     */
+    public static int getCollectionIdByItemId(int itemId) {
+        Connection conn = LiteConnection.getConnection();
+        
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT collection_id FROM items WHERE id = ?")) {
+            stmt.setInt(1, itemId);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("collection_id");
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error retrieving collection ID for item: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return -1;
+    }
 }
 

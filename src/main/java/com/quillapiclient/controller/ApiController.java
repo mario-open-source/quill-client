@@ -43,7 +43,7 @@ public class ApiController {
             try {
                 ApiResponse response = ApiCallBuilder.fromUI(
                     url, method, headersText, bodyText, authType,
-                    username, password, token, paramsText
+                    username, password, token, paramsText, itemId
                 ).execute();
 
                 // Calculate duration and set it on the response
