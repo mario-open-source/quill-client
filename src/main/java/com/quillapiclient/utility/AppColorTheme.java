@@ -62,6 +62,7 @@ public class AppColorTheme {
         UIManager.put("Tree.background", TREE_BACKGROUND);
         UIManager.put("Tree.textBackground", TREE_BACKGROUND);
         UIManager.put("ScrollPane.background", SCROLL_PANE_BACKGROUND);
+        UIManager.put("ScrollPane.viewportBackground", SCROLL_PANE_BACKGROUND);
         UIManager.put("TabbedPane.background", TABBED_PANE_BACKGROUND);
         UIManager.put("TabbedPane.selected", TABBED_PANE_SELECTED);
         

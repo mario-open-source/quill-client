@@ -17,6 +17,7 @@ public class RequestPanel {
     private JTextArea headersTextArea;
     private JTextArea paramsTextArea;
     private AuthPanel authPanel;
+    private HeadersPanel headersPanel;
 
     private final String BODY_LABEL = "Body";
     private final String AUTHORIZATION_LABEL = "Authorization";
@@ -43,15 +44,14 @@ public class RequestPanel {
         bodyTextArea = new JTextArea();
         authPanel = new AuthPanel();
         
-        headersTextArea = new JTextArea();
-        headersTextArea.setToolTipText("Enter headers in format: Key: Value (one per line)");
+        headersPanel = new HeadersPanel();
         
         paramsTextArea = new JTextArea();
         paramsTextArea.setToolTipText("Enter query parameters in format: key=value&key2=value2 or key: value (one per line)");
         
         tabs.addTab(BODY_LABEL, new JScrollPane(bodyTextArea));
         tabs.addTab(AUTHORIZATION_LABEL, authPanel.getPanel());
-        tabs.addTab(HEADERS_LABEL, new JScrollPane(headersTextArea));
+        tabs.addTab(HEADERS_LABEL, headersPanel.getScrollPane());
         tabs.addTab(PARAMS_LABEL, new JScrollPane(paramsTextArea));
         tabs.addTab(SCRIPTS_LABEL, new JScrollPane(new JTextArea()));
         tabs.addTab(SETTINGS_LABEL, new JScrollPane(new JTextArea()));
@@ -94,9 +94,9 @@ public class RequestPanel {
                                  .append("\n");
                 }
             }
-            headersTextArea.setText(headersBuilder.toString());
+            //headersTextArea.setText(headersBuilder.toString());
         } else {
-            headersTextArea.setText("");
+            //headersTextArea.setText("");
         }
         
         // Populate query parameters if available
@@ -118,6 +118,7 @@ public class RequestPanel {
         
         // Populate auth fields
         authPanel.populateFromRequest(request);
+        headersPanel.populateFromRequest(request);
     }
     
     // Getters for controller
