@@ -18,7 +18,6 @@ public class RequestPanel {
     private JTextArea paramsTextArea;
     private AuthPanel authPanel;
     private HeadersPanel headersPanel;
-    private String scripts;
 
     private final String BODY_LABEL = "Body";
     private final String AUTHORIZATION_LABEL = "Authorization";
