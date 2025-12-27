@@ -14,10 +14,11 @@ public class RequestPanel {
     private JComboBox<String> methodDropdown;
     private JButton sendButton;
     private JTextArea bodyTextArea;
-    private JTextArea headersTextArea;
+    private String headersTextArea;
     private JTextArea paramsTextArea;
     private AuthPanel authPanel;
     private HeadersPanel headersPanel;
+    private String scripts;
 
     private final String BODY_LABEL = "Body";
     private final String AUTHORIZATION_LABEL = "Authorization";
@@ -94,9 +95,9 @@ public class RequestPanel {
                                  .append("\n");
                 }
             }
-            //headersTextArea.setText(headersBuilder.toString());
+            headersTextArea = headersBuilder.toString();
         } else {
-            //headersTextArea.setText("");
+            headersTextArea = "";
         }
         
         // Populate query parameters if available
@@ -135,7 +136,7 @@ public class RequestPanel {
     }
     
     public String getHeaders() { 
-        return headersTextArea != null ? headersTextArea.getText() : ""; 
+        return headersTextArea != null ? headersTextArea : "";
     }
     
     public String getParams() { 
