@@ -24,8 +24,9 @@ public class RequestPanel {
     private final String AUTHORIZATION_LABEL = "Authorization";
     private final String HEADERS_LABEL = "Headers";
     private final String PARAMS_LABEL = "Params";
-    private final String SCRIPTS_LABEL = "Scripts";
-    private final String SETTINGS_LABEL = "Settings";
+    //Will see about implementing these later
+    //private final String SCRIPTS_LABEL = "Scripts";
+    //private final String SETTINGS_LABEL = "Settings";
     
     public RequestPanel() {
         panel = new JPanel(new BorderLayout());
