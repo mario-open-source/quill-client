@@ -10,7 +10,6 @@ import java.awt.*;
 public class RequestPanel {
     private JPanel panel;
     private TopPanel topPanel;
-    private JTextField urlField;
     private JComboBox<String> methodDropdown;
     private JButton sendButton;
     private JTextArea bodyTextArea;
@@ -32,7 +31,6 @@ public class RequestPanel {
         
         // Initialize TopPanel which contains URL, method dropdown, and send button
         topPanel = new TopPanel();
-        urlField = topPanel.getUrlField();
         methodDropdown = topPanel.getMethodDropdown();
         sendButton = topPanel.getSendButton();
         
@@ -64,11 +62,11 @@ public class RequestPanel {
             return;
         }
         
-        // Populate URL
+        // Populate URL (using placeholder-aware method)
         if (request.getUrl() != null && request.getUrl().getRaw() != null) {
-            urlField.setText(request.getUrl().getRaw());
+            topPanel.setUrlText(request.getUrl().getRaw());
         } else {
-            urlField.setText("");
+            topPanel.setUrlText("");
         }
         
         // Populate method
@@ -125,7 +123,7 @@ public class RequestPanel {
     
     // Getters for controller
     public String getUrl() { 
-        return urlField.getText().trim(); 
+        return topPanel.getUrlText(); 
     }
     
     public String getMethod() { 

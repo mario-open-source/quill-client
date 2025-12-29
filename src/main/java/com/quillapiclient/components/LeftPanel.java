@@ -2,6 +2,7 @@ package com.quillapiclient.components;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.Insets;
 import java.awt.event.ActionListener;
 
 import javax.swing.JButton;
@@ -30,9 +31,23 @@ public class LeftPanel {
 
         // Panel for Import and New buttons
         JPanel buttonPanel = new JPanel(new BorderLayout());
-        buttonPanel.setPreferredSize(new Dimension(Integer.MAX_VALUE, 50));
+
+        // Set fixed height for all buttons (30 pixels to match TopPanel) - only constrain height, not width
+        int fixedHeight = 35;
+        
         buttonImportCollection = new JButton(IMPORT_TEXT);
+        buttonImportCollection.setMargin(new Insets(0, 10, 0, 10)); // Remove vertical padding
+        Dimension importSize = buttonImportCollection.getPreferredSize();
+        buttonImportCollection.setPreferredSize(new Dimension(importSize.width, fixedHeight));
+        buttonImportCollection.setMinimumSize(new Dimension(importSize.width, fixedHeight));
+        buttonImportCollection.setMaximumSize(new Dimension(importSize.width, fixedHeight));
+        
         buttonNewCollection = new JButton(NEW_TEXT);
+        buttonNewCollection.setMargin(new Insets(0, 10, 0, 10)); // Remove vertical padding
+        Dimension newSize = buttonNewCollection.getPreferredSize();
+        buttonNewCollection.setPreferredSize(new Dimension(newSize.width, fixedHeight));
+        buttonNewCollection.setMinimumSize(new Dimension(newSize.width, fixedHeight));
+        buttonNewCollection.setMaximumSize(new Dimension(newSize.width, fixedHeight));
         
         if (importActionListener != null) {
             buttonImportCollection.addActionListener(importActionListener);
@@ -41,8 +56,8 @@ public class LeftPanel {
             buttonNewCollection.addActionListener(newActionListener);
         }
         
-        buttonPanel.add(buttonImportCollection, BorderLayout.WEST);
-        buttonPanel.add(buttonNewCollection, BorderLayout.EAST);
+        buttonPanel.add(buttonImportCollection, BorderLayout.EAST);
+        buttonPanel.add(buttonNewCollection, BorderLayout.WEST);
         
         // Add button panel at the top
         panel.add(buttonPanel, BorderLayout.NORTH);
