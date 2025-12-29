@@ -756,6 +756,187 @@ public class CollectionDao {
     }
     
     /**
+     * Updates a request in the database by item ID.
+     * 
+     * @param itemId The item ID of the request to update
+     * @param request The updated Request object
+     * @return true if update was successful, false otherwise
+     */
+    public static boolean updateRequest(int itemId, Request request) {
+        Connection conn = LiteConnection.getConnection();
+        
+        try {
+            conn.setAutoCommit(false);
+            
+            // Get the request ID directly from the connection
+            int requestId = -1;
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT id FROM requests WHERE item_id = ? LIMIT 1")) {
+                stmt.setInt(1, itemId);
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+                    requestId = rs.getInt("id");
+                }
+            }
+            
+            if (requestId <= 0) {
+                System.err.println("Request not found for item ID: " + itemId);
+                conn.rollback();
+                return false;
+            }
+            
+            // Extract request data
+            String method = request.getMethod() != null ? request.getMethod() : "";
+            String urlRaw = request.getUrl() != null && request.getUrl().getRaw() != null 
+                    ? request.getUrl().getRaw() : "";
+            String urlProtocol = request.getUrl() != null ? request.getUrl().getProtocol() : null;
+            String urlPort = request.getUrl() != null ? request.getUrl().getPort() : null;
+            String bodyMode = request.getBody() != null ? request.getBody().getMode() : null;
+            String bodyRaw = request.getBody() != null ? request.getBody().getRaw() : null;
+            String bodyLanguage = request.getBody() != null && request.getBody().getOptions() != null
+                    && request.getBody().getOptions().getRaw() != null
+                    ? request.getBody().getOptions().getRaw().getLanguage() : null;
+            
+            // Serialize complex objects to JSON
+            String fullUrlJson = null;
+            String fullBodyJson = null;
+            String fullAuthJson = null;
+            try {
+                fullUrlJson = request.getUrl() != null 
+                        ? objectMapper.writeValueAsString(request.getUrl()) : null;
+                fullBodyJson = request.getBody() != null 
+                        ? objectMapper.writeValueAsString(request.getBody()) : null;
+                fullAuthJson = request.getAuth() != null 
+                        ? objectMapper.writeValueAsString(request.getAuth()) : null;
+            } catch (JsonProcessingException e) {
+                System.err.println("Error serializing request data to JSON: " + e.getMessage());
+                e.printStackTrace();
+                conn.rollback();
+                return false;
+            }
+            
+            // Extract auth details
+            String authType = null;
+            String authBasicUsername = null;
+            String authBasicPassword = null;
+            String authBearerToken = null;
+            
+            if (request.getAuth() != null) {
+                if (request.getAuth().getBasic() != null && !request.getAuth().getBasic().isEmpty()) {
+                    authType = "basic";
+                    if (request.getAuth().getBasic().size() > 0) {
+                        authBasicUsername = request.getAuth().getBasic().get(0).getValue();
+                    }
+                    if (request.getAuth().getBasic().size() > 1) {
+                        authBasicPassword = request.getAuth().getBasic().get(1).getValue();
+                    }
+                } else if (request.getAuth().getBearer() != null && !request.getAuth().getBearer().isEmpty()) {
+                    authType = "bearer";
+                    if (request.getAuth().getBearer().size() > 0) {
+                        authBearerToken = request.getAuth().getBearer().get(0).getValue();
+                    }
+                }
+            }
+            
+            // Update request
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "UPDATE requests SET method = ?, url_raw = ?, url_protocol = ?, url_port = ?, " +
+                    "body_mode = ?, body_raw = ?, body_language = ?, auth_type = ?, auth_basic_username = ?, " +
+                    "auth_basic_password = ?, auth_bearer_token = ?, full_url_json = ?, full_body_json = ?, " +
+                    "full_auth_json = ?, updated_at = CURRENT_TIMESTAMP WHERE item_id = ?")) {
+                stmt.setString(1, method);
+                stmt.setString(2, urlRaw);
+                stmt.setString(3, urlProtocol);
+                stmt.setString(4, urlPort);
+                stmt.setString(5, bodyMode);
+                stmt.setString(6, bodyRaw);
+                stmt.setString(7, bodyLanguage);
+                stmt.setString(8, authType);
+                stmt.setString(9, authBasicUsername);
+                stmt.setString(10, authBasicPassword);
+                stmt.setString(11, authBearerToken);
+                stmt.setString(12, fullUrlJson);
+                stmt.setString(13, fullBodyJson);
+                stmt.setString(14, fullAuthJson);
+                stmt.setInt(15, itemId);
+                stmt.executeUpdate();
+            }
+            
+            // Delete existing headers and query params
+            try (PreparedStatement deleteHeaders = conn.prepareStatement(
+                    "DELETE FROM headers WHERE request_id = ?")) {
+                deleteHeaders.setInt(1, requestId);
+                deleteHeaders.executeUpdate();
+            }
+            
+            try (PreparedStatement deleteParams = conn.prepareStatement(
+                    "DELETE FROM query_params WHERE request_id = ?")) {
+                deleteParams.setInt(1, requestId);
+                deleteParams.executeUpdate();
+            }
+            
+            // Save new headers
+            if (request.getHeader() != null) {
+                int sortOrder = 0;
+                for (Header header : request.getHeader()) {
+                    try (PreparedStatement stmt = conn.prepareStatement(
+                            "INSERT INTO headers (request_id, header_key, header_value, disabled, sort_order) " +
+                            "VALUES (?, ?, ?, ?, ?)")) {
+                        stmt.setInt(1, requestId);
+                        stmt.setString(2, header.getKey());
+                        stmt.setString(3, header.getValue());
+                        stmt.setInt(4, header.getDisabled() != null && header.getDisabled() ? 1 : 0);
+                        stmt.setInt(5, sortOrder++);
+                        stmt.executeUpdate();
+                    } catch (SQLException e) {
+                        System.err.println("Error saving header to database: " + e.getMessage());
+                        e.printStackTrace();
+                    }
+                }
+            }
+            
+            // Save new query parameters
+            if (request.getUrl() != null && request.getUrl().getQuery() != null) {
+                int sortOrder = 0;
+                for (Query query : request.getUrl().getQuery()) {
+                    try (PreparedStatement stmt = conn.prepareStatement(
+                            "INSERT INTO query_params (request_id, param_key, param_value, sort_order) " +
+                            "VALUES (?, ?, ?, ?)")) {
+                        stmt.setInt(1, requestId);
+                        stmt.setString(2, query.getKey());
+                        stmt.setString(3, query.getValue());
+                        stmt.setInt(4, sortOrder++);
+                        stmt.executeUpdate();
+                    } catch (SQLException e) {
+                        System.err.println("Error saving query parameter to database: " + e.getMessage());
+                        e.printStackTrace();
+                    }
+                }
+            }
+            
+            conn.commit();
+            return true;
+        } catch (SQLException e) {
+            System.err.println("Error updating request in database: " + e.getMessage());
+            e.printStackTrace();
+            try {
+                conn.rollback();
+            } catch (SQLException rollbackEx) {
+                System.err.println("Error rolling back transaction: " + rollbackEx.getMessage());
+                rollbackEx.printStackTrace();
+            }
+            return false;
+        } finally {
+            try {
+                conn.setAutoCommit(true);
+            } catch (SQLException e) {
+                System.err.println("Error resetting auto-commit: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+    
+    /**
      * Saves an API response to the database.
      * 
      * @param response The ApiResponse object to save

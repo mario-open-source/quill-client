@@ -5,6 +5,8 @@ import com.quillapiclient.objects.Request;
 import com.quillapiclient.utility.AppColorTheme;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
+import java.util.ArrayList;
+import java.util.List;
 
 public class HeadersPanel {
     private JScrollPane scrollPane;
@@ -41,5 +43,29 @@ public class HeadersPanel {
 
     public JScrollPane getScrollPane() {
         return scrollPane;
+    }
+    
+    /**
+     * Gets all headers from the table as a list of Header objects
+     */
+    public List<Header> getHeaders() {
+        // Stop any cell editing to commit pending changes
+        if (headersTable.isEditing()) {
+            headersTable.getCellEditor().stopCellEditing();
+        }
+        
+        List<Header> headers = new ArrayList<>();
+        for (int i = 0; i < model.getRowCount(); i++) {
+            String key = (String) model.getValueAt(i, 0);
+            String value = (String) model.getValueAt(i, 1);
+            if (key != null && !key.trim().isEmpty()) {
+                Header header = new Header();
+                header.setKey(key.trim());
+                header.setValue(value != null ? value.trim() : "");
+                header.setDisabled(false);
+                headers.add(header);
+            }
+        }
+        return headers;
     }
 }

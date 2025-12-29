@@ -1,8 +1,8 @@
 package com.quillapiclient.components;
 
-import com.quillapiclient.objects.Header;
-import com.quillapiclient.objects.Query;
-import com.quillapiclient.objects.Request;
+import com.quillapiclient.objects.*;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.*;
 import java.awt.*;
@@ -18,6 +18,7 @@ public class RequestPanel {
     private AuthPanel authPanel;
     private HeadersPanel headersPanel;
     private ParamsPanel paramsPanel;
+    private Runnable saveCallback;
 
     private final String BODY_LABEL = "Body";
     private final String AUTHORIZATION_LABEL = "Authorization";
@@ -33,6 +34,13 @@ public class RequestPanel {
         topPanel = new TopPanel();
         methodDropdown = topPanel.getMethodDropdown();
         sendButton = topPanel.getSendButton();
+        
+        // Wire up Save button
+        topPanel.getSaveButton().addActionListener(e -> {
+            if (saveCallback != null) {
+                saveCallback.run();
+            }
+        });
         
         panel.add(topPanel.getPanel(), BorderLayout.NORTH);
         panel.add(createRequestTabs(), BorderLayout.CENTER);
@@ -52,8 +60,8 @@ public class RequestPanel {
         tabs.addTab(AUTHORIZATION_LABEL, authPanel.getPanel());
         tabs.addTab(HEADERS_LABEL, headersPanel.getScrollPane());
         tabs.addTab(PARAMS_LABEL, paramsPanel.getScrollPane());
-        tabs.addTab(SCRIPTS_LABEL, new JScrollPane(new JTextArea()));
-        tabs.addTab(SETTINGS_LABEL, new JScrollPane(new JTextArea()));
+        //tabs.addTab(SCRIPTS_LABEL, new JScrollPane(new JTextArea()));
+        //tabs.addTab(SETTINGS_LABEL, new JScrollPane(new JTextArea()));
         return tabs;
     }
     
@@ -152,5 +160,90 @@ public class RequestPanel {
     
     public JPanel getPanel() { 
         return panel; 
+    }
+    
+    /**
+     * Builds a Request object from all UI components
+     */
+    public Request buildRequestFromUI() {
+        Request request = new Request();
+        
+        // Set method
+        request.setMethod(getMethod());
+        
+        // Build URL
+        Url url = new Url();
+        url.setRaw(getUrl());
+        url.setQuery(paramsPanel.getQueryParams());
+        request.setUrl(url);
+        
+        // Build Body
+        String bodyText = getBody();
+        if (bodyText != null && !bodyText.trim().isEmpty()) {
+            Body body = new Body();
+            body.setMode("raw");
+            body.setRaw(bodyText);
+            request.setBody(body);
+        }
+        
+        // Build Headers
+        List<Header> headers = headersPanel.getHeaders();
+        if (!headers.isEmpty()) {
+            request.setHeader(headers);
+        }
+        
+        // Build Auth
+        Auth auth = buildAuthFromUI();
+        if (auth != null) {
+            request.setAuth(auth);
+        }
+        
+        return request;
+    }
+    
+    /**
+     * Builds an Auth object from AuthPanel
+     */
+    private Auth buildAuthFromUI() {
+        String authType = authPanel.getAuthType();
+        
+        if (authType == null || authType.equals("No auth")) {
+            return null;
+        }
+        
+        Auth auth = new Auth();
+        auth.setType(authType.toLowerCase().replace(" ", ""));
+        
+        if (authType.equals("Basic auth")) {
+            List<Credential> basic = new ArrayList<>();
+            Credential usernameCred = new Credential();
+            usernameCred.setKey("username");
+            usernameCred.setValue(authPanel.getUsername());
+            basic.add(usernameCred);
+            
+            Credential passwordCred = new Credential();
+            passwordCred.setKey("password");
+            passwordCred.setValue(authPanel.getPassword());
+            basic.add(passwordCred);
+            
+            auth.setBasic(basic);
+        } else if (authType.equals("Bearer token") || authType.equals("Jwt bearer")) {
+            List<Credential> bearer = new ArrayList<>();
+            Credential tokenCred = new Credential();
+            tokenCred.setKey("token");
+            tokenCred.setValue(authPanel.getToken());
+            bearer.add(tokenCred);
+            
+            auth.setBearer(bearer);
+        }
+        
+        return auth;
+    }
+    
+    /**
+     * Sets the callback to be executed when Save button is clicked
+     */
+    public void setSaveCallback(Runnable callback) {
+        this.saveCallback = callback;
     }
 }

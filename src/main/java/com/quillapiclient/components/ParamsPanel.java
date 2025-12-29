@@ -4,6 +4,7 @@ import com.quillapiclient.objects.Query;
 import com.quillapiclient.objects.Request;
 import com.quillapiclient.utility.AppColorTheme;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.*;
@@ -51,5 +52,28 @@ public class ParamsPanel {
 
     public JScrollPane getScrollPane() {
         return scrollPane;
+    }
+    
+    /**
+     * Gets all query parameters from the table as a list of Query objects
+     */
+    public List<Query> getQueryParams() {
+        // Stop any cell editing to commit pending changes
+        if (paramsTable.isEditing()) {
+            paramsTable.getCellEditor().stopCellEditing();
+        }
+        
+        List<Query> queries = new ArrayList<>();
+        for (int i = 0; i < model.getRowCount(); i++) {
+            String key = (String) model.getValueAt(i, 0);
+            String value = (String) model.getValueAt(i, 1);
+            if (key != null && !key.trim().isEmpty()) {
+                Query query = new Query();
+                query.setKey(key.trim());
+                query.setValue(value != null ? value.trim() : "");
+                queries.add(query);
+            }
+        }
+        return queries;
     }
 }

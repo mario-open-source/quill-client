@@ -133,14 +133,6 @@ public class TopPanel {
         String selectedMethod = (String) methodDropdown.getSelectedItem();
         Color methodColor = MethodColorUtil.getMethodColor(selectedMethod);
         
-        // Create a border with the method color (2px width for visibility)
-        Border coloredBorder = new LineBorder(methodColor, 1, true);
-        Border defaultBorder = new MatteBorder(1, 1, 1, 1, 
-            AppColorTheme.getColor("ComboBox.borderColor", AppColorTheme.COMBO_BOX_BORDER));
-        
-        // Combine borders for better visibility
-        methodDropdown.setBorder(new CompoundBorder(coloredBorder, defaultBorder));
-        
         // Set the text color to match the border
         methodDropdown.setForeground(methodColor);
     }

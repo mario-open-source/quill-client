@@ -62,6 +62,9 @@ public class Views {
         // Connect send button to API controller
         requestPanel.getSendButton().addActionListener(e -> executeApiCall());
         
+        // Connect save button to save handler
+        requestPanel.setSaveCallback(() -> saveRequest());
+        
         // Set up main window layout
         mainWindow.setLayout(
             leftPanelComponent.getPanel(),
@@ -119,6 +122,30 @@ public class Views {
             responsePanel.setSize(ResponseFormatter.formatSize(response.getBody().length()));
             
             responsePanel.setErrorState(!response.isSuccess());
+        }
+    }
+    
+    private void saveRequest() {
+        if (currentItemId <= 0) {
+            System.out.println("No request selected to save");
+            return;
+        }
+        
+        // Build Request object from UI
+        Request request = requestPanel.buildRequestFromUI();
+        
+        // Update in database
+        boolean success = CollectionDao.updateRequest(currentItemId, request);
+        
+        if (success) {
+            System.out.println("Request saved successfully");
+            // Optionally reload the request to ensure UI is in sync
+            Request updatedRequest = CollectionDao.getRequestByItemId(currentItemId);
+            if (updatedRequest != null) {
+                requestPanel.populateFromRequest(updatedRequest);
+            }
+        } else {
+            System.err.println("Failed to save request");
         }
     }
     
