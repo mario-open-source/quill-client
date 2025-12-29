@@ -18,6 +18,7 @@ public class RequestPanel {
     private JTextArea paramsTextArea;
     private AuthPanel authPanel;
     private HeadersPanel headersPanel;
+    private ParamsPanel paramsPanel;
 
     private final String BODY_LABEL = "Body";
     private final String AUTHORIZATION_LABEL = "Authorization";
@@ -43,7 +44,7 @@ public class RequestPanel {
         JTabbedPane tabs = new JTabbedPane();
         bodyTextArea = new JTextArea();
         authPanel = new AuthPanel();
-        
+        paramsPanel = new ParamsPanel();
         headersPanel = new HeadersPanel();
         
         paramsTextArea = new JTextArea();
@@ -52,7 +53,7 @@ public class RequestPanel {
         tabs.addTab(BODY_LABEL, new JScrollPane(bodyTextArea));
         tabs.addTab(AUTHORIZATION_LABEL, authPanel.getPanel());
         tabs.addTab(HEADERS_LABEL, headersPanel.getScrollPane());
-        tabs.addTab(PARAMS_LABEL, new JScrollPane(paramsTextArea));
+        tabs.addTab(PARAMS_LABEL, paramsPanel.getScrollPane());
         tabs.addTab(SCRIPTS_LABEL, new JScrollPane(new JTextArea()));
         tabs.addTab(SETTINGS_LABEL, new JScrollPane(new JTextArea()));
         return tabs;
@@ -119,6 +120,7 @@ public class RequestPanel {
         // Populate auth fields
         authPanel.populateFromRequest(request);
         headersPanel.populateFromRequest(request);
+        paramsPanel.populateFromRequest(request);
     }
     
     // Getters for controller
