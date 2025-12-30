@@ -74,7 +74,7 @@ public class Views {
     }
     
     private void handleRequestSelection(Request request) {
-        requestPanel.populateFromRequest(request);
+        requestPanel.populateFromRequest(request, currentItemId);
         // Load and display the response for this request
         loadAndDisplayResponse();
     }
@@ -139,10 +139,11 @@ public class Views {
         
         if (success) {
             System.out.println("Request saved successfully");
-            // Optionally reload the request to ensure UI is in sync
+            // Clear unsaved changes and reload from database
+            requestPanel.clearUnsavedChanges();
             Request updatedRequest = CollectionDao.getRequestByItemId(currentItemId);
             if (updatedRequest != null) {
-                requestPanel.populateFromRequest(updatedRequest);
+                requestPanel.populateFromRequest(updatedRequest, currentItemId);
             }
         } else {
             System.err.println("Failed to save request");

@@ -68,4 +68,18 @@ public class HeadersPanel {
         }
         return headers;
     }
+    
+    /**
+     * Gets the table for adding listeners
+     */
+    public JTable getTable() {
+        return headersTable;
+    }
+    
+    /**
+     * Gets the table model for adding listeners
+     */
+    public DefaultTableModel getTableModel() {
+        return model;
+    }
 }

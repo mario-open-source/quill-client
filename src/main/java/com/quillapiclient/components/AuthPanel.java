@@ -182,7 +182,28 @@ public class AuthPanel {
         return tokenField != null ? tokenField.getText() : ""; 
     }
     
+    public JComboBox<String> getAuthTypeComboBox() {
+        return authTypeComboBox;
+    }
+    
     public JPanel getPanel() { 
         return authPanel; 
+    }
+    
+    /**
+     * Sets a key listener on all auth input fields
+     */
+    public void setKeyListener(java.awt.event.KeyListener listener) {
+        if (userField != null) {
+            userField.addKeyListener(listener);
+        }
+        if (passField != null) {
+            passField.addKeyListener(listener);
+        }
+        if (tokenField != null) {
+            tokenField.addKeyListener(listener);
+        }
+        // For combo box, use action listener to enable save button
+        // We'll handle this separately in RequestPanel since we can't easily create a KeyEvent
     }
 }

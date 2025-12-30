@@ -76,4 +76,18 @@ public class ParamsPanel {
         }
         return queries;
     }
+    
+    /**
+     * Gets the table for adding listeners
+     */
+    public JTable getTable() {
+        return paramsTable;
+    }
+    
+    /**
+     * Gets the table model for adding listeners
+     */
+    public DefaultTableModel getTableModel() {
+        return model;
+    }
 }

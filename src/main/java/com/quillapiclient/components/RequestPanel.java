@@ -2,7 +2,9 @@ package com.quillapiclient.components;
 
 import com.quillapiclient.objects.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.swing.*;
 import java.awt.*;
@@ -19,6 +21,9 @@ public class RequestPanel {
     private HeadersPanel headersPanel;
     private ParamsPanel paramsPanel;
     private Runnable saveCallback;
+    private boolean isPopulating = false; // Flag to prevent listeners from enabling save during population
+    private int currentItemId = -1; // Track current item ID
+    private static Map<Integer, Request> unsavedChanges = new HashMap<>(); // Store unsaved changes by item ID
 
     private final String BODY_LABEL = "Body";
     private final String AUTHORIZATION_LABEL = "Authorization";
@@ -42,9 +47,82 @@ public class RequestPanel {
                 saveCallback.run();
             }
         });
+        topPanel.getSaveButton().setEnabled(false);
         
         panel.add(topPanel.getPanel(), BorderLayout.NORTH);
         panel.add(createRequestTabs(), BorderLayout.CENTER);
+        
+        // Setup change listeners for all input fields (after components are created)
+        setupChangeListeners();
+    }
+    
+    /**
+     * Sets up key listeners on all input fields to enable save button on any key press
+     */
+    private void setupChangeListeners() {
+        // Create a simple key listener that enables the save button and stores changes (only if not populating)
+        java.awt.event.KeyListener enableSaveListener = new java.awt.event.KeyAdapter() {
+            @Override
+            public void keyPressed(java.awt.event.KeyEvent e) {
+                if (!isPopulating) {
+                    topPanel.getSaveButton().setEnabled(true);
+                    saveCurrentStateToMemory();
+                }
+            }
+        };
+        
+        // URL field
+        topPanel.getUrlField().addKeyListener(enableSaveListener);
+        
+        // Method dropdown - use action listener instead
+        methodDropdown.addActionListener(e -> {
+            if (!isPopulating) {
+                topPanel.getSaveButton().setEnabled(true);
+                saveCurrentStateToMemory();
+            }
+        });
+        
+        // Body text area
+        bodyTextArea.addKeyListener(enableSaveListener);
+        
+        // Headers table - use TableModelListener to catch all edits (including double-click edits)
+        headersPanel.getTableModel().addTableModelListener(e -> {
+            if (!isPopulating) {
+                topPanel.getSaveButton().setEnabled(true);
+                saveCurrentStateToMemory();
+            }
+        });
+        headersPanel.getTable().addKeyListener(enableSaveListener);
+        
+        // Params table - use TableModelListener to catch all edits (including double-click edits)
+        paramsPanel.getTableModel().addTableModelListener(e -> {
+            if (!isPopulating) {
+                topPanel.getSaveButton().setEnabled(true);
+                saveCurrentStateToMemory();
+            }
+        });
+        paramsPanel.getTable().addKeyListener(enableSaveListener);
+        
+        // Auth panel fields
+        authPanel.setKeyListener(enableSaveListener);
+        
+        // Auth type combo box - use action listener
+        authPanel.getAuthTypeComboBox().addActionListener(e -> {
+            if (!isPopulating) {
+                topPanel.getSaveButton().setEnabled(true);
+                saveCurrentStateToMemory();
+            }
+        });
+    }
+    
+    /**
+     * Saves the current UI state to memory for the current item
+     */
+    private void saveCurrentStateToMemory() {
+        if (currentItemId > 0) {
+            Request currentState = buildRequestFromUI();
+            unsavedChanges.put(currentItemId, currentState);
+        }
     }
     
     private JTabbedPane createRequestTabs() {
@@ -66,34 +144,54 @@ public class RequestPanel {
         return tabs;
     }
     
-    public void populateFromRequest(Request request) {
-        if (request == null) {
+    public void populateFromRequest(Request request, int itemId) {
+        // Save current state before switching (if there was a previous item and it's different)
+        if (currentItemId > 0 && currentItemId != itemId) {
+            // Build current state and save it with the old itemId
+            Request currentState = buildRequestFromUI();
+            unsavedChanges.put(currentItemId, currentState);
+        }
+        
+        // Update current item ID
+        currentItemId = itemId;
+        
+        // Set flag to prevent listeners from enabling save button during population
+        isPopulating = true;
+        
+        // Check if there are unsaved changes for this item
+        Request requestToLoad = unsavedChanges.getOrDefault(itemId, request);
+        
+        // Disable save button if loading from database (no unsaved changes), enable if loading from memory
+        topPanel.getSaveButton().setEnabled(unsavedChanges.containsKey(itemId));
+        
+        if (requestToLoad == null) {
+            isPopulating = false;
             return;
         }
         
-        // Populate URL (using placeholder-aware method)
-        if (request.getUrl() != null && request.getUrl().getRaw() != null) {
-            topPanel.setUrlText(request.getUrl().getRaw());
+        // Populate URL (using placeholder-aware method) - use requestToLoad, not request
+        if (requestToLoad.getUrl() != null && requestToLoad.getUrl().getRaw() != null) {
+            topPanel.setUrlText(requestToLoad.getUrl().getRaw());
         } else {
             topPanel.setUrlText("");
         }
         
         // Populate method
-        if (request.getMethod() != null) {
-            methodDropdown.setSelectedItem(request.getMethod());
+        if (requestToLoad.getMethod() != null) {
+            methodDropdown.setSelectedItem(requestToLoad.getMethod());
         }
         
         // Populate body
-        if (request.getBody() != null && request.getBody().getRaw() != null) {
-            bodyTextArea.setText(request.getBody().getRaw());
+        if (requestToLoad.getBody() != null && requestToLoad.getBody().getRaw() != null) {
+            bodyTextArea.setText(requestToLoad.getBody().getRaw());
         } else {
             bodyTextArea.setText("");
         }
         
         // Populate headers if available
-        if (request.getHeader() != null && !request.getHeader().isEmpty()) {
+        if (requestToLoad.getHeader() != null && !requestToLoad.getHeader().isEmpty()) {
             StringBuilder headersBuilder = new StringBuilder();
-            for (Header header : request.getHeader()) {
+            for (Header header : requestToLoad.getHeader()) {
                 // Assuming header format is [key, value, description]
                 if (header.getKey() != null && header.getValue() != null) {
                     headersBuilder.append(header.getKey())
@@ -108,9 +206,9 @@ public class RequestPanel {
         }
         
         // Populate query parameters if available
-        if (request.getUrl() != null && request.getUrl().getQuery() != null) {
+        if (requestToLoad.getUrl() != null && requestToLoad.getUrl().getQuery() != null) {
             StringBuilder paramsBuilder = new StringBuilder();
-            for (Query queryParam : request.getUrl().getQuery()) {
+            for (Query queryParam : requestToLoad.getUrl().getQuery()) {
                 // Assuming query param format is [key, value, description]
                 if (queryParam.getKey() != null && queryParam.getValue() != null) {
                     paramsBuilder.append(queryParam.getKey())
@@ -125,9 +223,28 @@ public class RequestPanel {
         }
         
         // Populate auth fields
-        authPanel.populateFromRequest(request);
-        headersPanel.populateFromRequest(request);
-        paramsPanel.populateFromRequest(request);
+        authPanel.populateFromRequest(requestToLoad);
+        headersPanel.populateFromRequest(requestToLoad);
+        paramsPanel.populateFromRequest(requestToLoad);
+        
+        // Reset flag after population is complete
+        isPopulating = false;
+    }
+    
+    /**
+     * Overloaded method for backward compatibility
+     */
+    public void populateFromRequest(Request request) {
+        populateFromRequest(request, currentItemId);
+    }
+    
+    /**
+     * Clears unsaved changes for the current item (called after successful save)
+     */
+    public void clearUnsavedChanges() {
+        if (currentItemId > 0) {
+            unsavedChanges.remove(currentItemId);
+        }
     }
     
     // Getters for controller
@@ -246,5 +363,12 @@ public class RequestPanel {
      */
     public void setSaveCallback(Runnable callback) {
         this.saveCallback = callback;
+    }
+    
+    /**
+     * Gets the save button for external access
+     */
+    public JButton getSaveButton() {
+        return topPanel.getSaveButton();
     }
 }
