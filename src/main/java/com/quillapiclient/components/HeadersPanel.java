@@ -49,10 +49,6 @@ public class HeadersPanel {
      * Gets all headers from the table as a list of Header objects
      */
     public List<Header> getHeaders() {
-        // Stop any cell editing to commit pending changes
-        if (headersTable.isEditing()) {
-            headersTable.getCellEditor().stopCellEditing();
-        }
         
         List<Header> headers = new ArrayList<>();
         for (int i = 0; i < model.getRowCount(); i++) {

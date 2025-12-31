@@ -84,12 +84,18 @@ public class RequestPanel {
         
         // Body text area
         bodyTextArea.addKeyListener(enableSaveListener);
-        
+        boolean saving = false;
         // Headers table - use TableModelListener to catch all edits (including double-click edits)
         headersPanel.getTableModel().addTableModelListener(e -> {
             if (!isPopulating) {
                 topPanel.getSaveButton().setEnabled(true);
-                saveCurrentStateToMemory();
+                SwingUtilities.invokeLater(() -> {
+                    try {
+                        saveCurrentStateToMemory();
+                    }catch (Exception ex){
+                        System.out.println(ex.getMessage());
+                    }
+                });
             }
         });
         headersPanel.getTable().addKeyListener(enableSaveListener);

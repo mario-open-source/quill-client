@@ -58,11 +58,6 @@ public class ParamsPanel {
      * Gets all query parameters from the table as a list of Query objects
      */
     public List<Query> getQueryParams() {
-        // Stop any cell editing to commit pending changes
-        if (paramsTable.isEditing()) {
-            paramsTable.getCellEditor().stopCellEditing();
-        }
-        
         List<Query> queries = new ArrayList<>();
         for (int i = 0; i < model.getRowCount(); i++) {
             String key = (String) model.getValueAt(i, 0);
