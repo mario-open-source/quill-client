@@ -24,6 +24,7 @@ public class TopPanel {
     private final String SEND_TEXT = "Send";
     private final String URL_PLACEHOLDER = "Enter URL or paste text";
     private boolean isPlaceholderShown = true;
+    private final String[] methods = {"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"};
     
     public TopPanel() {
         this.panel = createPanel();
@@ -31,7 +32,7 @@ public class TopPanel {
     
     private JPanel createPanel() {
         JPanel topPanel = new JPanel(new BorderLayout());
-        final String[] methods = {"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"};
+
         methodDropdown = new JComboBox<>(methods);
         
         // Set custom renderer for colored text

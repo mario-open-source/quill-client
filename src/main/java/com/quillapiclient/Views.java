@@ -130,6 +130,8 @@ public class Views {
             System.out.println("No request selected to save");
             return;
         }
+
+        requestPanel.getSaveButton().setEnabled(false);
         
         // Build Request object from UI
         Request request = requestPanel.buildRequestFromUI();
@@ -148,6 +150,7 @@ public class Views {
         } else {
             System.err.println("Failed to save request");
         }
+        requestPanel.getSaveButton().setEnabled(true);
     }
     
     private void executeApiCall() {

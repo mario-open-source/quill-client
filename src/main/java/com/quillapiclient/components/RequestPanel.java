@@ -14,6 +14,7 @@ public class RequestPanel {
     private TopPanel topPanel;
     private JComboBox<String> methodDropdown;
     private JButton sendButton;
+    private JButton saveButton;
     private JTextArea bodyTextArea;
     private String headersTextArea;
     private JTextArea paramsTextArea;
@@ -40,14 +41,14 @@ public class RequestPanel {
         topPanel = new TopPanel();
         methodDropdown = topPanel.getMethodDropdown();
         sendButton = topPanel.getSendButton();
-        
+        saveButton = topPanel.getSaveButton();
+
         // Wire up Save button
         topPanel.getSaveButton().addActionListener(e -> {
             if (saveCallback != null) {
                 saveCallback.run();
             }
         });
-        topPanel.getSaveButton().setEnabled(false);
         
         panel.add(topPanel.getPanel(), BorderLayout.NORTH);
         panel.add(createRequestTabs(), BorderLayout.CENTER);
@@ -65,7 +66,6 @@ public class RequestPanel {
             @Override
             public void keyPressed(java.awt.event.KeyEvent e) {
                 if (!isPopulating) {
-                    topPanel.getSaveButton().setEnabled(true);
                     saveCurrentStateToMemory();
                 }
             }
@@ -77,7 +77,6 @@ public class RequestPanel {
         // Method dropdown - use action listener instead
         methodDropdown.addActionListener(e -> {
             if (!isPopulating) {
-                topPanel.getSaveButton().setEnabled(true);
                 saveCurrentStateToMemory();
             }
         });
@@ -88,7 +87,6 @@ public class RequestPanel {
         // Headers table - use TableModelListener to catch all edits (including double-click edits)
         headersPanel.getTableModel().addTableModelListener(e -> {
             if (!isPopulating) {
-                topPanel.getSaveButton().setEnabled(true);
                 SwingUtilities.invokeLater(() -> {
                     try {
                         saveCurrentStateToMemory();
@@ -103,7 +101,6 @@ public class RequestPanel {
         // Params table - use TableModelListener to catch all edits (including double-click edits)
         paramsPanel.getTableModel().addTableModelListener(e -> {
             if (!isPopulating) {
-                topPanel.getSaveButton().setEnabled(true);
                 saveCurrentStateToMemory();
             }
         });
@@ -115,7 +112,6 @@ public class RequestPanel {
         // Auth type combo box - use action listener
         authPanel.getAuthTypeComboBox().addActionListener(e -> {
             if (!isPopulating) {
-                topPanel.getSaveButton().setEnabled(true);
                 saveCurrentStateToMemory();
             }
         });
@@ -145,8 +141,7 @@ public class RequestPanel {
         tabs.addTab(AUTHORIZATION_LABEL, authPanel.getPanel());
         tabs.addTab(HEADERS_LABEL, headersPanel.getScrollPane());
         tabs.addTab(PARAMS_LABEL, paramsPanel.getScrollPane());
-        //tabs.addTab(SCRIPTS_LABEL, new JScrollPane(new JTextArea()));
-        //tabs.addTab(SETTINGS_LABEL, new JScrollPane(new JTextArea()));
+
         return tabs;
     }
     
@@ -166,9 +161,6 @@ public class RequestPanel {
         
         // Check if there are unsaved changes for this item
         Request requestToLoad = unsavedChanges.getOrDefault(itemId, request);
-        
-        // Disable save button if loading from database (no unsaved changes), enable if loading from memory
-        topPanel.getSaveButton().setEnabled(unsavedChanges.containsKey(itemId));
         
         if (requestToLoad == null) {
             isPopulating = false;
@@ -236,13 +228,7 @@ public class RequestPanel {
         // Reset flag after population is complete
         isPopulating = false;
     }
-    
-    /**
-     * Overloaded method for backward compatibility
-     */
-    public void populateFromRequest(Request request) {
-        populateFromRequest(request, currentItemId);
-    }
+
     
     /**
      * Clears unsaved changes for the current item (called after successful save)
@@ -281,6 +267,8 @@ public class RequestPanel {
     public JButton getSendButton() {
         return sendButton;
     }
+
+    public JButton getSaveButton(){ return saveButton; }
     
     public JPanel getPanel() { 
         return panel; 
@@ -370,11 +358,5 @@ public class RequestPanel {
     public void setSaveCallback(Runnable callback) {
         this.saveCallback = callback;
     }
-    
-    /**
-     * Gets the save button for external access
-     */
-    public JButton getSaveButton() {
-        return topPanel.getSaveButton();
-    }
+
 }
