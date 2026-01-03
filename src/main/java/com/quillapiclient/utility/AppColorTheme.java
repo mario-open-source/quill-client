@@ -47,6 +47,8 @@ public class AppColorTheme {
     // Warning Colors (if needed)
     public static final Color WARNING_TEXT = new Color(255, 200, 100);
     public static final Color WARNING_BACKGROUND = new Color(40, 35, 20);
+
+    public static final Color UNSAVED_CHANGES_COLOR = new Color(100,149,237);
     
     /**
      * Applies the dark theme colors to the UIManager.

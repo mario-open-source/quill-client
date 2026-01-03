@@ -47,7 +47,7 @@ public class Views {
         // Also track the item ID when a request is selected
         fileSelectionListener.setItemIdCallback(this::setCurrentItemId);
         
-        OpenFileAction.FileChooserCallback importCallback = 
+        OpenFileAction.FileChooserCallback importCallback =
             collectionManager::loadCollectionFile;
         
         OpenFileAction importAction = new OpenFileAction(importCallback);
@@ -67,8 +67,8 @@ public class Views {
         
         // Set up main window layout
         mainWindow.setLayout(
-            leftPanelComponent.getPanel(),
-            requestPanel.getPanel(),
+            leftPanelComponent,
+            requestPanel,
             responsePanel.getPanel()
         );
     }
