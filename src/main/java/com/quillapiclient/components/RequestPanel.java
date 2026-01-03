@@ -84,7 +84,6 @@ public class RequestPanel {
 
         // Body text area
         bodyTextArea.addKeyListener(enableSaveListener);
-        boolean saving = false;
         // Headers table - use TableModelListener to catch all edits (including double-click edits)
         headersPanel.getTableModel().addTableModelListener(e -> {
             if (!isPopulating) {
