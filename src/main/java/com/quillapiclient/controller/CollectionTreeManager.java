@@ -2,12 +2,17 @@ package com.quillapiclient.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quillapiclient.db.CollectionDao;
+import com.quillapiclient.objects.Item;
 import com.quillapiclient.objects.PostmanCollection;
 
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 
 public class CollectionTreeManager {
@@ -20,6 +25,195 @@ public class CollectionTreeManager {
         tree = new JTree(emptyRoot);
         // Set custom renderer to display methods with colors
         tree.setCellRenderer(new com.quillapiclient.components.MethodTreeCellRenderer());
+        
+        // Add right-click context menu
+        setupContextMenu();
+    }
+    
+    /**
+     * Sets up the right-click context menu for the tree
+     */
+    private void setupContextMenu() {
+        JPopupMenu popupMenu = new JPopupMenu();
+        JMenuItem addRequestItem = new JMenuItem("Add Request");
+        
+        addRequestItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleAddRequest();
+            }
+        });
+        
+        popupMenu.add(addRequestItem);
+        
+        // Add mouse listener to show popup menu on right-click
+        tree.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    showPopupMenu(e);
+                }
+            }
+            
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    showPopupMenu(e);
+                }
+            }
+            
+            private void showPopupMenu(MouseEvent e) {
+                TreePath path = tree.getPathForLocation(e.getX(), e.getY());
+                if (path == null) {
+                    return;
+                }
+                
+                tree.setSelectionPath(path);
+                DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
+                Object userObject = node.getUserObject();
+                
+                // Only show menu for folders or collection roots
+                boolean isFolder = false;
+                int collectionId = -1;
+                Integer parentId = null;
+                
+                if (userObject instanceof CollectionRootData) {
+                    // Collection root - can add request at root level
+                    CollectionRootData rootData = (CollectionRootData) userObject;
+                    collectionId = rootData.collectionId;
+                    parentId = null;
+                    isFolder = true;
+                } else if (userObject instanceof TreeNodeData) {
+                    TreeNodeData nodeData = (TreeNodeData) userObject;
+                    if ("folder".equals(nodeData.itemType)) {
+                        isFolder = true;
+                        collectionId = getCollectionIdByItemId(nodeData.itemId);
+                        parentId = nodeData.itemId;
+                    }
+                }
+                
+                if (isFolder && collectionId > 0) {
+                    // Store context for the action
+                    tree.putClientProperty("contextCollectionId", collectionId);
+                    tree.putClientProperty("contextParentId", parentId);
+                    popupMenu.show(tree, e.getX(), e.getY());
+                }
+            }
+        });
+    }
+    
+    /**
+     * Handles adding a new request when user clicks "Add Request" from context menu
+     */
+    private void handleAddRequest() {
+        Integer collectionIdObj = (Integer) tree.getClientProperty("contextCollectionId");
+        Integer parentIdObj = (Integer) tree.getClientProperty("contextParentId");
+        
+        if (collectionIdObj == null || collectionIdObj <= 0) {
+            return;
+        }
+        
+        int collectionId = collectionIdObj;
+        Integer parentId = parentIdObj;
+        
+        // Prompt user for request name
+        String requestName = JOptionPane.showInputDialog(
+            tree,
+            "Enter request name:",
+            "New Request",
+            JOptionPane.PLAIN_MESSAGE
+        );
+        
+        if (requestName == null || requestName.trim().isEmpty()) {
+            return; // User cancelled or entered empty name
+        }
+        
+        requestName = requestName.trim();
+        Item item = new Item();
+        item.setName(requestName);
+        
+        // Create the new request in database
+        int newItemId = CollectionDao.createNewRequest(collectionId, parentId, requestName);
+        
+        if (newItemId > 0) {
+            // Refresh the tree to show the new request
+            addRequestNode(collectionId, parentId, item);
+        } else {
+            JOptionPane.showMessageDialog(
+                tree,
+                "Failed to create new request",
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+            );
+        }
+    }
+
+    private DefaultMutableTreeNode findCollectionNode(int collectionId) {
+        DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+        DefaultMutableTreeNode root = (DefaultMutableTreeNode) model.getRoot();
+
+        for (int i = 0; i < root.getChildCount(); i++) {
+            DefaultMutableTreeNode child = (DefaultMutableTreeNode) root.getChildAt(i);
+            Object uo = child.getUserObject();
+            if (uo instanceof CollectionRootData data && data.collectionId == collectionId) {
+                return child;
+            }
+        }
+        return null;
+    }
+
+    public void addRequestNode(int collectionId, Integer parentFolderId, Item requestUserObject) {
+        DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+
+        DefaultMutableTreeNode collectionNode = findCollectionNode(collectionId);
+        if (collectionNode == null) return;
+
+        DefaultMutableTreeNode parentNode = collectionNode;
+
+        // if adding inside a folder, find that folder node under this collection
+        if (parentFolderId != null) {
+            DefaultMutableTreeNode folderNode = findNodeDepthFirst(collectionNode, uo ->
+                    (uo instanceof TreeNodeData nd)
+                            && "folder".equals(nd.itemType)
+                            && nd.itemId == parentFolderId
+            );
+
+            if (folderNode != null) {
+                parentNode = folderNode;
+            } else {
+                // fallback: folder not found in tree (could be collapsed/unloaded or IDs mismatch)
+                // You can keep fallback or handle it differently.
+            }
+        }
+
+        DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(requestUserObject.getName());
+        model.insertNodeInto(newNode, parentNode, parentNode.getChildCount());
+
+        TreePath path = new TreePath(newNode.getPath());
+        tree.expandPath(path.getParentPath());
+        tree.scrollPathToVisible(path);
+        tree.setSelectionPath(path);
+    }
+
+    private DefaultMutableTreeNode findNodeDepthFirst(DefaultMutableTreeNode start,
+                                                      java.util.function.Predicate<Object> match) {
+        Object uo = start.getUserObject();
+        if (match.test(uo)) return start;
+
+        for (int i = 0; i < start.getChildCount(); i++) {
+            DefaultMutableTreeNode found =
+                    findNodeDepthFirst((DefaultMutableTreeNode) start.getChildAt(i), match);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+
+    /**
+     * Gets collection ID by item ID (helper method)
+     */
+    private int getCollectionIdByItemId(int itemId) {
+        return CollectionDao.getCollectionIdByItemId(itemId);
     }
     
     /**
