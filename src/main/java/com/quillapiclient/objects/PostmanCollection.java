@@ -12,6 +12,8 @@ public class PostmanCollection {
     private List<Item> item;
     private List<Event> event;
     private List<Variable> variable;
+    private Auth auth;
+    private ProtocolProfileBehavior protocolProfileBehavior;
 
     // Getters and Setters
     public Info getInfo() { 
@@ -44,5 +46,21 @@ public class PostmanCollection {
     
     public void setVariable(List<Variable> variable) {
         this.variable = variable;
+    }
+
+    public Auth getAuth() {
+        return auth;
+    }
+
+    public void setAuth(Auth auth) {
+        this.auth = auth;
+    }
+
+    public ProtocolProfileBehavior getProtocolProfileBehavior() {
+        return protocolProfileBehavior;
+    }
+
+    public void setProtocolProfileBehavior(ProtocolProfileBehavior protocolProfileBehavior) {
+        this.protocolProfileBehavior = protocolProfileBehavior;
     }
 }

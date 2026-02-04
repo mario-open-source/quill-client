@@ -7,8 +7,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Event {
+    private String id;
     private String listen;
     private Script script;
+    private Boolean disabled;
 
     // Getters and Setters
     public String getListen() { 
@@ -25,6 +27,22 @@ public class Event {
     
     public void setScript(Script script) { 
         this.script = script; 
+    }
+    
+    public String getId() {
+        return id;
+    }
+    
+    public void setId(String id) {
+        this.id = id;
+    }
+    
+    public Boolean getDisabled() {
+        return disabled;
+    }
+    
+    public void setDisabled(Boolean disabled) {
+        this.disabled = disabled;
     }
 }
 

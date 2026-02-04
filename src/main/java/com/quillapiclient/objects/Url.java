@@ -13,6 +13,8 @@ public class Url {
     public List<String> path;
     public List<Query> query;
     public String port;
+    public String hash;
+    public List<Variable> variable; // Path variables
 
     // Getters and Setters
     public String getRaw() { return raw; }
@@ -27,4 +29,8 @@ public class Url {
     public void setQuery(List<Query> query) { this.query = query; }
     public String getPort() { return port; }
     public void setPort(String port) { this.port = port; }
+    public String getHash() { return hash; }
+    public void setHash(String hash) { this.hash = hash; }
+    public List<Variable> getVariable() { return variable; }
+    public void setVariable(List<Variable> variable) { this.variable = variable; }
 }
