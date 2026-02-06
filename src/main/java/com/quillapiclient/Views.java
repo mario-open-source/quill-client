@@ -7,10 +7,12 @@ import com.quillapiclient.components.MainWindow;
 import com.quillapiclient.components.RequestPanel;
 import com.quillapiclient.components.LeftPanel;
 import com.quillapiclient.components.ResponsePanel;
+import com.quillapiclient.components.EnvironmentVariablesWindow;
 import com.quillapiclient.utility.FileSelectionListener;
 import com.quillapiclient.utility.OpenFileAction;
 import com.quillapiclient.objects.Request;
 import com.quillapiclient.db.CollectionDao;
+import com.quillapiclient.db.EnvironmentDao;
 import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.utility.ResponseFormatter;
 
@@ -65,6 +67,17 @@ public class Views {
             importAction, 
             e -> System.out.println("New collection button clicked")
         );
+
+        environmentManager.getList().addListSelectionListener(event -> {
+            if (event.getValueIsAdjusting()) {
+                return;
+            }
+            int selectedIndex = environmentManager.getList().getSelectedIndex();
+            EnvironmentDao.EnvironmentInfo info = environmentManager.getEnvironmentInfoAt(selectedIndex);
+            if (info != null) {
+                new EnvironmentVariablesWindow(info.id, info.name);
+            }
+        });
         
         // Connect send button to API controller
         requestPanel.getSendButton().addActionListener(e -> executeApiCall());
