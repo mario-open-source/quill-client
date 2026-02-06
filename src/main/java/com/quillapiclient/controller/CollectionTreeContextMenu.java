@@ -11,26 +11,41 @@ import java.awt.event.MouseEvent;
 public class CollectionTreeContextMenu {
     private final JTree tree;
     private final AddRequestHandler addRequestHandler;
+    private final DeleteHandler deleteHandler;
     private final JPopupMenu popupMenu;
     private Integer contextCollectionId;
     private Integer contextParentId;
+    private Integer contextItemId;
+    private String contextItemType;
+    private DefaultMutableTreeNode contextNode;
+    private JMenuItem addRequestItem;
+    private JMenuItem deleteItem;
 
-    public CollectionTreeContextMenu(JTree tree, AddRequestHandler addRequestHandler) {
+    public CollectionTreeContextMenu(JTree tree, AddRequestHandler addRequestHandler, DeleteHandler deleteHandler) {
         this.tree = tree;
         this.addRequestHandler = addRequestHandler;
+        this.deleteHandler = deleteHandler;
         this.popupMenu = new JPopupMenu();
         setupContextMenu();
     }
 
     private void setupContextMenu() {
-        JMenuItem addRequestItem = new JMenuItem("Add Request");
+        addRequestItem = new JMenuItem("Add Request");
         addRequestItem.addActionListener(event -> {
             if (contextCollectionId != null) {
                 addRequestHandler.onAddRequest(contextCollectionId, contextParentId);
             }
         });
 
+        deleteItem = new JMenuItem("Delete");
+        deleteItem.addActionListener(event -> {
+            if (contextCollectionId != null && contextItemType != null && contextNode != null) {
+                deleteHandler.onDelete(contextItemType, contextCollectionId, contextItemId, contextNode);
+            }
+        });
+
         popupMenu.add(addRequestItem);
+        popupMenu.add(deleteItem);
 
         tree.addMouseListener(new MouseAdapter() {
             @Override
@@ -62,22 +77,45 @@ public class CollectionTreeContextMenu {
         boolean isFolder = false;
         Integer collectionId = resolveCollectionId(path);
         Integer parentId = null;
+        String itemType = null;
+        Integer itemId = null;
 
         if (userObject instanceof CollectionTreeManager.CollectionRootData rootData) {
             collectionId = rootData.collectionId;
             isFolder = true;
+            itemType = "collection";
         } else if (userObject instanceof CollectionTreeManager.TreeNodeData nodeData) {
             if ("folder".equals(nodeData.itemType)) {
                 isFolder = true;
                 parentId = nodeData.itemId;
+                itemType = "folder";
+                itemId = nodeData.itemId;
+            } else if ("request".equals(nodeData.itemType)) {
+                itemType = "request";
+                itemId = nodeData.itemId;
             }
         }
 
-        if (isFolder && collectionId != null && collectionId > 0) {
+        if (collectionId != null && collectionId > 0 && itemType != null) {
             contextCollectionId = collectionId;
             contextParentId = parentId;
+            contextItemType = itemType;
+            contextItemId = itemId;
+            contextNode = node;
+            addRequestItem.setEnabled(isFolder);
+            deleteItem.setEnabled(true);
+            deleteItem.setText(buildDeleteLabel(itemType));
             popupMenu.show(tree, e.getX(), e.getY());
         }
+    }
+
+    private String buildDeleteLabel(String itemType) {
+        return switch (itemType) {
+            case "collection" -> "Delete Collection";
+            case "folder" -> "Delete Folder";
+            case "request" -> "Delete Request";
+            default -> "Delete";
+        };
     }
 
     private Integer resolveCollectionId(TreePath path) {
@@ -96,5 +134,10 @@ public class CollectionTreeContextMenu {
     @FunctionalInterface
     public interface AddRequestHandler {
         void onAddRequest(int collectionId, Integer parentId);
+    }
+
+    @FunctionalInterface
+    public interface DeleteHandler {
+        void onDelete(String itemType, int collectionId, Integer itemId, DefaultMutableTreeNode node);
     }
 }
