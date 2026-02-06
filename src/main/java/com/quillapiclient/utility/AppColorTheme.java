@@ -63,6 +63,8 @@ public class AppColorTheme {
         UIManager.put("Button.background", BUTTON_BACKGROUND);
         UIManager.put("Tree.background", TREE_BACKGROUND);
         UIManager.put("Tree.textBackground", TREE_BACKGROUND);
+        UIManager.put("List.background", TREE_BACKGROUND);
+        UIManager.put("List.foreground", TREE_FOREGROUND);
         UIManager.put("ScrollPane.background", SCROLL_PANE_BACKGROUND);
         UIManager.put("ScrollPane.viewportBackground", SCROLL_PANE_BACKGROUND);
         UIManager.put("TabbedPane.background", TABBED_PANE_BACKGROUND);
@@ -80,6 +82,8 @@ public class AppColorTheme {
         // Selection colors
         UIManager.put("Tree.selectionBackground", TREE_SELECTION_BACKGROUND);
         UIManager.put("Tree.selectionForeground", TREE_SELECTION_FOREGROUND);
+        UIManager.put("List.selectionBackground", TREE_SELECTION_BACKGROUND);
+        UIManager.put("List.selectionForeground", TREE_SELECTION_FOREGROUND);
     }
     
     /**
