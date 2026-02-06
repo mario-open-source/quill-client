@@ -11,6 +11,7 @@ import java.awt.event.MouseEvent;
 public class CollectionTreeContextMenu {
     private final JTree tree;
     private final AddRequestHandler addRequestHandler;
+    private final AddFolderHandler addFolderHandler;
     private final DeleteHandler deleteHandler;
     private final JPopupMenu popupMenu;
     private Integer contextCollectionId;
@@ -19,11 +20,13 @@ public class CollectionTreeContextMenu {
     private String contextItemType;
     private DefaultMutableTreeNode contextNode;
     private JMenuItem addRequestItem;
+    private JMenuItem addFolderItem;
     private JMenuItem deleteItem;
 
-    public CollectionTreeContextMenu(JTree tree, AddRequestHandler addRequestHandler, DeleteHandler deleteHandler) {
+    public CollectionTreeContextMenu(JTree tree, AddRequestHandler addRequestHandler, AddFolderHandler addFolderHandler, DeleteHandler deleteHandler) {
         this.tree = tree;
         this.addRequestHandler = addRequestHandler;
+        this.addFolderHandler = addFolderHandler;
         this.deleteHandler = deleteHandler;
         this.popupMenu = new JPopupMenu();
         setupContextMenu();
@@ -37,6 +40,13 @@ public class CollectionTreeContextMenu {
             }
         });
 
+        addFolderItem = new JMenuItem("Add Folder");
+        addFolderItem.addActionListener(event -> {
+            if (contextCollectionId != null) {
+                addFolderHandler.onAddFolder(contextCollectionId, contextParentId);
+            }
+        });
+
         deleteItem = new JMenuItem("Delete");
         deleteItem.addActionListener(event -> {
             if (contextCollectionId != null && contextItemType != null && contextNode != null) {
@@ -45,6 +55,7 @@ public class CollectionTreeContextMenu {
         });
 
         popupMenu.add(addRequestItem);
+        popupMenu.add(addFolderItem);
         popupMenu.add(deleteItem);
 
         tree.addMouseListener(new MouseAdapter() {
@@ -103,6 +114,7 @@ public class CollectionTreeContextMenu {
             contextItemId = itemId;
             contextNode = node;
             addRequestItem.setEnabled(isFolder);
+            addFolderItem.setEnabled(isFolder);
             deleteItem.setEnabled(true);
             deleteItem.setText(buildDeleteLabel(itemType));
             popupMenu.show(tree, e.getX(), e.getY());
@@ -134,6 +146,11 @@ public class CollectionTreeContextMenu {
     @FunctionalInterface
     public interface AddRequestHandler {
         void onAddRequest(int collectionId, Integer parentId);
+    }
+
+    @FunctionalInterface
+    public interface AddFolderHandler {
+        void onAddFolder(int collectionId, Integer parentId);
     }
 
     @FunctionalInterface

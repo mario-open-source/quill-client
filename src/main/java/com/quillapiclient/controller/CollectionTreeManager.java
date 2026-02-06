@@ -22,7 +22,7 @@ public class CollectionTreeManager {
         tree.setCellRenderer(new com.quillapiclient.components.MethodTreeCellRenderer());
         
         // Add right-click context menu
-        new CollectionTreeContextMenu(tree, this::handleAddRequest, this::handleDeleteItem);
+        new CollectionTreeContextMenu(tree, this::handleAddRequest, this::handleAddFolder, this::handleDeleteItem);
     }
 
     /**
@@ -56,6 +56,40 @@ public class CollectionTreeManager {
             JOptionPane.showMessageDialog(
                 tree,
                 "Failed to create new request",
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+            );
+        }
+    }
+
+    /**
+     * Handles adding a new folder when user clicks "Add Folder" from context menu
+     */
+    private void handleAddFolder(int collectionId, Integer parentId) {
+        if (collectionId <= 0) {
+            return;
+        }
+
+        String folderName = JOptionPane.showInputDialog(
+            tree,
+            "Enter folder name:",
+            "New Folder",
+            JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (folderName == null || folderName.trim().isEmpty()) {
+            return;
+        }
+
+        folderName = folderName.trim();
+        int newItemId = CollectionDao.createNewFolder(collectionId, parentId, folderName);
+
+        if (newItemId > 0) {
+            addFolderNode(collectionId, parentId, newItemId, folderName);
+        } else {
+            JOptionPane.showMessageDialog(
+                tree,
+                "Failed to create new folder",
                 "Error",
                 JOptionPane.ERROR_MESSAGE
             );
@@ -130,6 +164,14 @@ public class CollectionTreeManager {
     }
 
     public void addRequestNode(int collectionId, Integer parentFolderId, int itemId, String requestName, String method) {
+        addNodeToCollection(collectionId, parentFolderId, buildRequestNodeData(itemId, requestName, method, "GET"));
+    }
+
+    public void addFolderNode(int collectionId, Integer parentFolderId, int itemId, String folderName) {
+        addNodeToCollection(collectionId, parentFolderId, new TreeNodeData(itemId, folderName, "folder", folderName));
+    }
+
+    private void addNodeToCollection(int collectionId, Integer parentFolderId, TreeNodeData nodeData) {
         DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
 
         DefaultMutableTreeNode collectionNode = findCollectionNode(collectionId);
@@ -137,7 +179,6 @@ public class CollectionTreeManager {
 
         DefaultMutableTreeNode parentNode = collectionNode;
 
-        // if adding inside a folder, find that folder node under this collection
         if (parentFolderId != null) {
             DefaultMutableTreeNode folderNode = findNodeDepthFirst(collectionNode, uo ->
                     (uo instanceof TreeNodeData nd)
@@ -147,13 +188,9 @@ public class CollectionTreeManager {
 
             if (folderNode != null) {
                 parentNode = folderNode;
-            } else {
-                // fallback: folder not found in tree (could be collapsed/unloaded or IDs mismatch)
-                // You can keep fallback or handle it differently.
             }
         }
 
-        TreeNodeData nodeData = buildRequestNodeData(itemId, requestName, method, "GET");
         DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(nodeData);
         model.insertNodeInto(newNode, parentNode, parentNode.getChildCount());
 
