@@ -4,11 +4,11 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Insets;
-import java.awt.Label;
 import java.awt.event.ActionListener;
 
 import javax.swing.JButton;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
@@ -18,17 +18,19 @@ import javax.swing.event.TreeSelectionListener;
 public class LeftPanel {
     private JPanel panel;
     private JTree jTree;
+    private JList<String> environmentList;
     private JButton buttonImportCollection;
     private JButton buttonNewCollection;
     private final String IMPORT_TEXT = "Import";
     private final String NEW_TEXT = "New";
-    public LeftPanel(JTree jTree, TreeSelectionListener selectionListener, 
+    public LeftPanel(JTree jTree, JList<String> environmentList, TreeSelectionListener selectionListener,
                      ActionListener importActionListener, ActionListener newActionListener) {
         this.jTree = jTree;
-        this.panel = createPanelWithTree(jTree, selectionListener, importActionListener, newActionListener);
+        this.environmentList = environmentList;
+        this.panel = createPanelWithTree(jTree, environmentList, selectionListener, importActionListener, newActionListener);
     }
     
-    private JPanel createPanelWithTree(JTree jTree, TreeSelectionListener selectionListener,
+    private JPanel createPanelWithTree(JTree jTree, JList<String> environmentList, TreeSelectionListener selectionListener,
                                        ActionListener importActionListener, ActionListener newActionListener) {
         // Use BorderLayout to properly fill available space
         JPanel panel = new JPanel(new BorderLayout());
@@ -83,7 +85,7 @@ public class LeftPanel {
         collectionsPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 
         // Wrap the tree in a scroll pane for the Environments tab
-        JScrollPane environmentsPane = new JScrollPane(new Label("Environments"));
+        JScrollPane environmentsPane = new JScrollPane(environmentList);
         environmentsPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         environmentsPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 
@@ -104,6 +106,10 @@ public class LeftPanel {
     public JTree getTree() {
         return jTree;
     }
+
+    public JList<String> getEnvironmentList() {
+        return environmentList;
+    }
     
     public JButton getImportButton() {
         return buttonImportCollection;
@@ -113,4 +119,3 @@ public class LeftPanel {
         return buttonNewCollection;
     }
 }
-

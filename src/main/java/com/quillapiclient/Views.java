@@ -2,6 +2,7 @@ package com.quillapiclient;
 
 import com.quillapiclient.controller.ApiController;
 import com.quillapiclient.controller.CollectionTreeManager;
+import com.quillapiclient.controller.EnvironmentListManager;
 import com.quillapiclient.components.MainWindow;
 import com.quillapiclient.components.RequestPanel;
 import com.quillapiclient.components.LeftPanel;
@@ -13,10 +14,14 @@ import com.quillapiclient.db.CollectionDao;
 import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.utility.ResponseFormatter;
 
+import javax.swing.JOptionPane;
+import java.io.File;
+
 public class Views {
     private MainWindow mainWindow;
     private RequestPanel requestPanel;
     private CollectionTreeManager collectionManager;
+    private EnvironmentListManager environmentManager;
     private ApiController apiController;
     private ResponsePanel responsePanel;
     private int currentItemId = -1; // Track the currently selected item ID
@@ -26,12 +31,14 @@ public class Views {
         responsePanel = new ResponsePanel();
         apiController = new ApiController(responsePanel);
         collectionManager = new CollectionTreeManager();
+        environmentManager = new EnvironmentListManager();
         requestPanel = new RequestPanel();
         
         setupComponents();
         
         // Load all collections from database on startup
         collectionManager.loadAllCollections();
+        environmentManager.loadAllEnvironments();
     }
     
     private void setupComponents() {
@@ -47,13 +54,13 @@ public class Views {
         // Also track the item ID when a request is selected
         fileSelectionListener.setItemIdCallback(this::setCurrentItemId);
         
-        OpenFileAction.FileChooserCallback importCallback =
-            collectionManager::loadCollectionFile;
+        OpenFileAction.FileChooserCallback importCallback = this::handleImportFile;
         
         OpenFileAction importAction = new OpenFileAction(importCallback);
         
         LeftPanel leftPanelComponent = new LeftPanel(
             collectionManager.getTree(), 
+            environmentManager.getList(),
             fileSelectionListener, 
             importAction, 
             e -> System.out.println("New collection button clicked")
@@ -71,6 +78,24 @@ public class Views {
             requestPanel,
             responsePanel.getPanel()
         );
+    }
+
+    private void handleImportFile(File file) {
+        if (file == null) {
+            return;
+        }
+
+        String filename = file.getName().toLowerCase();
+        if (filename.contains("environment")) {
+            environmentManager.loadEnvironmentFile(file);
+        } else if (filename.contains("collection")) {
+            collectionManager.loadCollectionFile(file);
+        } else {
+            JOptionPane.showMessageDialog(null,
+                "Import failed: filename must include \"environment\" or \"collection\".",
+                "Invalid Import",
+                JOptionPane.WARNING_MESSAGE);
+        }
     }
     
     private void handleRequestSelection(Request request) {
