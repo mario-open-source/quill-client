@@ -1463,6 +1463,66 @@ public class CollectionDao {
     }
     
     /**
+     * Creates a new folder item in the database.
+     *
+     * @param collectionId The collection ID
+     * @param parentId The parent folder ID (null if root level)
+     * @param folderName The name for the new folder
+     * @return The item ID of the newly created folder, or -1 if operation fails
+     */
+    public static int createNewFolder(int collectionId, Integer parentId, String folderName) {
+        Connection conn = LiteConnection.getConnection();
+
+        try {
+            conn.setAutoCommit(false);
+
+            int itemId = -1;
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO items (collection_id, parent_id, name, item_type) VALUES (?, ?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS)) {
+                stmt.setInt(1, collectionId);
+                if (parentId != null) {
+                    stmt.setInt(2, parentId);
+                } else {
+                    stmt.setNull(2, Types.INTEGER);
+                }
+                stmt.setString(3, folderName);
+                stmt.setString(4, "folder");
+                stmt.executeUpdate();
+
+                ResultSet rs = stmt.getGeneratedKeys();
+                if (rs.next()) {
+                    itemId = rs.getInt(1);
+                } else {
+                    System.err.println("Failed to get generated key for new folder");
+                    conn.rollback();
+                    return -1;
+                }
+            }
+
+            conn.commit();
+            return itemId;
+        } catch (SQLException e) {
+            System.err.println("Error creating new folder: " + e.getMessage());
+            e.printStackTrace();
+            try {
+                conn.rollback();
+            } catch (SQLException rollbackEx) {
+                System.err.println("Error rolling back transaction: " + rollbackEx.getMessage());
+                rollbackEx.printStackTrace();
+            }
+            return -1;
+        } finally {
+            try {
+                conn.setAutoCommit(true);
+            } catch (SQLException e) {
+                System.err.println("Error resetting auto-commit: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+
+    /**
      * Creates a new request item in the database.
      * 
      * @param collectionId The collection ID
