@@ -4,12 +4,14 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Insets;
+import java.awt.Label;
 import java.awt.event.ActionListener;
 
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTabbedPane;
 import javax.swing.JTree;
 import javax.swing.event.TreeSelectionListener;
 
@@ -75,14 +77,22 @@ public class LeftPanel {
         // Use the provided JTree and add a selection listener
         jTree.addTreeSelectionListener(selectionListener);
 
-        // Wrap the tree in a scroll pane to enable scrolling when it becomes too large
-        // The scroll pane will fill the remaining space (CENTER in BorderLayout)
-        JScrollPane scrollPane = new JScrollPane(jTree);
-        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        
-        // Add scroll pane in the center to fill remaining space
-        panel.add(scrollPane, BorderLayout.CENTER);
+        // Wrap the tree in a scroll pane for the Collections tab
+        JScrollPane collectionsPane = new JScrollPane(jTree);
+        collectionsPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        collectionsPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+
+        // Wrap the tree in a scroll pane for the Environments tab
+        JScrollPane environmentsPane = new JScrollPane(new Label("Environments"));
+        environmentsPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        environmentsPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+
+        // Tabbed pane: Collections and Environments
+        JTabbedPane tabbedPane = new JTabbedPane();
+        tabbedPane.addTab("Collections", collectionsPane);
+        tabbedPane.addTab("Environments", environmentsPane);
+
+        panel.add(tabbedPane, BorderLayout.CENTER);
 
         return panel;
     }
