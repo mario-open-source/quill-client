@@ -2,17 +2,12 @@ package com.quillapiclient.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quillapiclient.db.CollectionDao;
-import com.quillapiclient.objects.Item;
 import com.quillapiclient.objects.PostmanCollection;
 
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.io.File;
 
 public class CollectionTreeManager {
@@ -27,94 +22,16 @@ public class CollectionTreeManager {
         tree.setCellRenderer(new com.quillapiclient.components.MethodTreeCellRenderer());
         
         // Add right-click context menu
-        setupContextMenu();
+        new CollectionTreeContextMenu(tree, this::handleAddRequest);
     }
-    
-    /**
-     * Sets up the right-click context menu for the tree
-     */
-    private void setupContextMenu() {
-        JPopupMenu popupMenu = new JPopupMenu();
-        JMenuItem addRequestItem = new JMenuItem("Add Request");
-        
-        addRequestItem.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                handleAddRequest();
-            }
-        });
-        
-        popupMenu.add(addRequestItem);
-        
-        // Add mouse listener to show popup menu on right-click
-        tree.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent e) {
-                if (e.isPopupTrigger()) {
-                    showPopupMenu(e);
-                }
-            }
-            
-            @Override
-            public void mouseReleased(MouseEvent e) {
-                if (e.isPopupTrigger()) {
-                    showPopupMenu(e);
-                }
-            }
-            
-            private void showPopupMenu(MouseEvent e) {
-                TreePath path = tree.getPathForLocation(e.getX(), e.getY());
-                if (path == null) {
-                    return;
-                }
-                
-                tree.setSelectionPath(path);
-                DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
-                Object userObject = node.getUserObject();
-                
-                // Only show menu for folders or collection roots
-                boolean isFolder = false;
-                int collectionId = -1;
-                Integer parentId = null;
-                
-                if (userObject instanceof CollectionRootData) {
-                    // Collection root - can add request at root level
-                    CollectionRootData rootData = (CollectionRootData) userObject;
-                    collectionId = rootData.collectionId;
-                    parentId = null;
-                    isFolder = true;
-                } else if (userObject instanceof TreeNodeData) {
-                    TreeNodeData nodeData = (TreeNodeData) userObject;
-                    if ("folder".equals(nodeData.itemType)) {
-                        isFolder = true;
-                        collectionId = getCollectionIdByItemId(nodeData.itemId);
-                        parentId = nodeData.itemId;
-                    }
-                }
-                
-                if (isFolder && collectionId > 0) {
-                    // Store context for the action
-                    tree.putClientProperty("contextCollectionId", collectionId);
-                    tree.putClientProperty("contextParentId", parentId);
-                    popupMenu.show(tree, e.getX(), e.getY());
-                }
-            }
-        });
-    }
-    
+
     /**
      * Handles adding a new request when user clicks "Add Request" from context menu
      */
-    private void handleAddRequest() {
-        Integer collectionIdObj = (Integer) tree.getClientProperty("contextCollectionId");
-        Integer parentIdObj = (Integer) tree.getClientProperty("contextParentId");
-        
-        if (collectionIdObj == null || collectionIdObj <= 0) {
+    private void handleAddRequest(int collectionId, Integer parentId) {
+        if (collectionId <= 0) {
             return;
         }
-        
-        int collectionId = collectionIdObj;
-        Integer parentId = parentIdObj;
         
         // Prompt user for request name
         String requestName = JOptionPane.showInputDialog(
@@ -129,15 +46,12 @@ public class CollectionTreeManager {
         }
         
         requestName = requestName.trim();
-        Item item = new Item();
-        item.setName(requestName);
-        
         // Create the new request in database
         int newItemId = CollectionDao.createNewRequest(collectionId, parentId, requestName);
         
         if (newItemId > 0) {
             // Refresh the tree to show the new request
-            addRequestNode(collectionId, parentId, item);
+            addRequestNode(collectionId, parentId, newItemId, requestName, "GET");
         } else {
             JOptionPane.showMessageDialog(
                 tree,
@@ -162,7 +76,7 @@ public class CollectionTreeManager {
         return null;
     }
 
-    public void addRequestNode(int collectionId, Integer parentFolderId, Item requestUserObject) {
+    public void addRequestNode(int collectionId, Integer parentFolderId, int itemId, String requestName, String method) {
         DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
 
         DefaultMutableTreeNode collectionNode = findCollectionNode(collectionId);
@@ -186,7 +100,8 @@ public class CollectionTreeManager {
             }
         }
 
-        DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(requestUserObject.getName());
+        TreeNodeData nodeData = buildRequestNodeData(itemId, requestName, method, "GET");
+        DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(nodeData);
         model.insertNodeInto(newNode, parentNode, parentNode.getChildCount());
 
         TreePath path = new TreePath(newNode.getPath());
@@ -209,13 +124,6 @@ public class CollectionTreeManager {
     }
 
 
-    /**
-     * Gets collection ID by item ID (helper method)
-     */
-    private int getCollectionIdByItemId(int itemId) {
-        return CollectionDao.getCollectionIdByItemId(itemId);
-    }
-    
     /**
      * Loads a Postman collection file, saves it to the database, and adds it to the UI tree.
      * 
@@ -337,18 +245,14 @@ public class CollectionTreeManager {
      */
     private DefaultMutableTreeNode buildNodeFromMemory(CollectionDao.ItemInfo itemInfo, 
                                                        CollectionDao.CollectionItemsData itemsData) {
-        String displayName = itemInfo.name;
-        
         // If this item is a request, get the method from the pre-loaded map
+        TreeNodeData nodeData;
         if ("request".equals(itemInfo.itemType)) {
             String method = itemsData.getRequestMethod(itemInfo.id);
-            if (method != null && !method.isEmpty()) {
-                displayName = displayName + " [" + method + "]";
-            }
+            nodeData = buildRequestNodeData(itemInfo.id, itemInfo.name, method, null);
+        } else {
+            nodeData = new TreeNodeData(itemInfo.id, itemInfo.name, itemInfo.itemType, itemInfo.name);
         }
-        
-        // Store the item data in the user object for later retrieval
-        TreeNodeData nodeData = new TreeNodeData(itemInfo.id, itemInfo.name, itemInfo.itemType, displayName);
         DefaultMutableTreeNode node = new DefaultMutableTreeNode(nodeData);
         
         // Get child items from in-memory map (no database query!)
@@ -358,6 +262,19 @@ public class CollectionTreeManager {
         }
         
         return node;
+    }
+
+    private static TreeNodeData buildRequestNodeData(int itemId, String requestName, String method, String defaultMethod) {
+        String displayName = buildRequestDisplayName(requestName, method, defaultMethod);
+        return new TreeNodeData(itemId, requestName, "request", displayName);
+    }
+
+    private static String buildRequestDisplayName(String requestName, String method, String defaultMethod) {
+        String resolvedMethod = (method == null || method.isBlank()) ? defaultMethod : method;
+        if (resolvedMethod == null || resolvedMethod.isBlank()) {
+            return requestName;
+        }
+        return requestName + " [" + resolvedMethod + "]";
     }
     
     /**
@@ -404,7 +321,7 @@ public class CollectionTreeManager {
     /**
      * Data class to store collection root node information.
      */
-    private static class CollectionRootData {
+    static class CollectionRootData {
         public final int collectionId;
         public final String collectionName;
         
