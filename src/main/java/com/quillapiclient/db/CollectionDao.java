@@ -426,6 +426,46 @@ public class CollectionDao {
         
         return -1;
     }
+
+    /**
+     * Deletes an entire collection and all related data.
+     *
+     * @param collectionId The collection ID
+     * @return true if delete was successful, false otherwise
+     */
+    public static boolean deleteCollection(int collectionId) {
+        Connection conn = LiteConnection.getConnection();
+
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "DELETE FROM collections WHERE id = ?")) {
+            stmt.setInt(1, collectionId);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("Error deleting collection from database: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * Deletes an item (request or folder). Cascades to child items and related data.
+     *
+     * @param itemId The item ID
+     * @return true if delete was successful, false otherwise
+     */
+    public static boolean deleteItem(int itemId) {
+        Connection conn = LiteConnection.getConnection();
+
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "DELETE FROM items WHERE id = ?")) {
+            stmt.setInt(1, itemId);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("Error deleting item from database: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
     
     /**
      * Gets all root items (items with no parent) for a collection.
@@ -1494,4 +1534,3 @@ public class CollectionDao {
         }
     }
 }
-

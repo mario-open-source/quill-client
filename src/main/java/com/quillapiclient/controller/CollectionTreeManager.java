@@ -22,7 +22,7 @@ public class CollectionTreeManager {
         tree.setCellRenderer(new com.quillapiclient.components.MethodTreeCellRenderer());
         
         // Add right-click context menu
-        new CollectionTreeContextMenu(tree, this::handleAddRequest);
+        new CollectionTreeContextMenu(tree, this::handleAddRequest, this::handleDeleteItem);
     }
 
     /**
@@ -60,6 +60,59 @@ public class CollectionTreeManager {
                 JOptionPane.ERROR_MESSAGE
             );
         }
+    }
+
+    private void handleDeleteItem(String itemType, int collectionId, Integer itemId, DefaultMutableTreeNode node) {
+        if (collectionId <= 0 || itemType == null || node == null) {
+            return;
+        }
+
+        String itemLabel = switch (itemType) {
+            case "collection" -> "collection";
+            case "folder" -> "folder";
+            case "request" -> "request";
+            default -> "item";
+        };
+
+        int confirm = JOptionPane.showConfirmDialog(
+            tree,
+            "Delete this " + itemLabel + "? This cannot be undone.",
+            "Confirm Delete",
+            JOptionPane.OK_CANCEL_OPTION,
+            JOptionPane.WARNING_MESSAGE
+        );
+
+        if (confirm != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        boolean deleted = switch (itemType) {
+            case "collection" -> CollectionDao.deleteCollection(collectionId);
+            case "folder", "request" -> itemId != null && CollectionDao.deleteItem(itemId);
+            default -> false;
+        };
+
+        if (deleted) {
+            removeNodeFromTree(node);
+        } else {
+            JOptionPane.showMessageDialog(
+                tree,
+                "Failed to delete " + itemLabel,
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+            );
+        }
+    }
+
+    private void removeNodeFromTree(DefaultMutableTreeNode node) {
+        DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+        if (node.getParent() == null) {
+            return;
+        }
+        TreePath parentPath = new TreePath(((DefaultMutableTreeNode) node.getParent()).getPath());
+        model.removeNodeFromParent(node);
+        tree.setSelectionPath(parentPath);
+        tree.scrollPathToVisible(parentPath);
     }
 
     private DefaultMutableTreeNode findCollectionNode(int collectionId) {
