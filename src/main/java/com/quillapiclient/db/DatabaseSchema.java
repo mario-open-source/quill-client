@@ -156,6 +156,35 @@ public class DatabaseSchema {
                     FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE
                 )
             """);
+
+            // Create environments table
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS environments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    postman_id TEXT UNIQUE,
+                    name TEXT NOT NULL,
+                    variable_scope TEXT,
+                    exported_at TEXT,
+                    exported_using TEXT,
+                    full_environment_json TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """);
+
+            // Create environment values table
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS environment_values (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    environment_id INTEGER NOT NULL,
+                    variable_key TEXT NOT NULL,
+                    variable_value TEXT,
+                    variable_type TEXT,
+                    enabled INTEGER DEFAULT 1,
+                    sort_order INTEGER DEFAULT 0,
+                    FOREIGN KEY (environment_id) REFERENCES environments(id) ON DELETE CASCADE
+                )
+            """);
             
             // Create response_headers table (one-to-many with responses)
             stmt.execute("""
@@ -226,6 +255,12 @@ public class DatabaseSchema {
         // Response header lookups
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_response_headers_response_id ON response_headers(response_id)");
         stmt.execute("CREATE INDEX IF NOT EXISTS idx_response_headers_key ON response_headers(header_key)");
+
+        // Environment lookups
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_environments_postman_id ON environments(postman_id)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_environments_name ON environments(name)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_environment_values_env_id ON environment_values(environment_id)");
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_environment_values_key ON environment_values(variable_key)");
     }
     
     /**
@@ -258,6 +293,15 @@ public class DatabaseSchema {
                 UPDATE requests SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
             END
         """);
+
+        // Environments
+        stmt.execute("""
+            CREATE TRIGGER IF NOT EXISTS update_environments_timestamp
+            AFTER UPDATE ON environments
+            BEGIN
+                UPDATE environments SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+            END
+        """);
     }
     
     /**
@@ -274,6 +318,8 @@ public class DatabaseSchema {
                 stmt.executeQuery("SELECT 1 FROM items LIMIT 1");
                 stmt.executeQuery("SELECT 1 FROM requests LIMIT 1");
                 stmt.executeQuery("SELECT 1 FROM responses LIMIT 1");
+                stmt.executeQuery("SELECT 1 FROM environments LIMIT 1");
+                stmt.executeQuery("SELECT 1 FROM environment_values LIMIT 1");
                 return true;
             }
         } catch (SQLException e) {
@@ -294,6 +340,8 @@ public class DatabaseSchema {
             stmt.execute("DROP TABLE IF EXISTS responses");
             stmt.execute("DROP TABLE IF EXISTS events");
             stmt.execute("DROP TABLE IF EXISTS variables");
+            stmt.execute("DROP TABLE IF EXISTS environment_values");
+            stmt.execute("DROP TABLE IF EXISTS environments");
             stmt.execute("DROP TABLE IF EXISTS query_params");
             stmt.execute("DROP TABLE IF EXISTS headers");
             stmt.execute("DROP TABLE IF EXISTS requests");
@@ -303,4 +351,3 @@ public class DatabaseSchema {
         }
     }
 }
-
