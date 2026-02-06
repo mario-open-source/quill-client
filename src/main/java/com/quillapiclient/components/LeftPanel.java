@@ -2,10 +2,12 @@ package com.quillapiclient.components;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Insets;
 import java.awt.event.ActionListener;
 
 import javax.swing.JButton;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTree;
@@ -55,9 +57,17 @@ public class LeftPanel {
         if (newActionListener != null) {
             buttonNewCollection.addActionListener(newActionListener);
         }
-        
-        buttonPanel.add(buttonImportCollection, BorderLayout.EAST);
-        buttonPanel.add(buttonNewCollection, BorderLayout.WEST);
+
+        // Label on the left
+        JLabel titleLabel = new JLabel("QuillClient");
+        titleLabel.setFont(titleLabel.getFont().deriveFont(titleLabel.getFont().getSize2D() + 2f));
+        buttonPanel.add(titleLabel, BorderLayout.WEST);
+
+        // Both buttons on the right in a flow panel
+        JPanel rightButtonPanel = new JPanel(new FlowLayout(FlowLayout.TRAILING, 4, 0));
+        rightButtonPanel.add(buttonNewCollection);
+        rightButtonPanel.add(buttonImportCollection);
+        buttonPanel.add(rightButtonPanel, BorderLayout.EAST);
         
         // Add button panel at the top
         panel.add(buttonPanel, BorderLayout.NORTH);
