@@ -17,16 +17,26 @@ import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.utility.ResponseFormatter;
 
 import javax.swing.JOptionPane;
+import javax.swing.JPopupMenu;
+import javax.swing.JMenuItem;
 import javax.swing.SwingUtilities;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
+import java.awt.Rectangle;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 
 public class Views {
     private MainWindow mainWindow;
+    private LeftPanel leftPanelComponent;
     private RequestPanel requestPanel;
     private CollectionTreeManager collectionManager;
     private EnvironmentListManager environmentManager;
     private ApiController apiController;
     private ResponsePanel responsePanel;
+    private int environmentContextIndex = -1;
+    private boolean environmentPopupInteraction = false;
     private int currentItemId = -1; // Track the currently selected item ID
     
     public Views() {
@@ -42,6 +52,7 @@ public class Views {
         // Load all collections from database on startup
         collectionManager.loadAllCollections();
         environmentManager.loadAllEnvironments();
+        updateActiveEnvironmentIndicator();
     }
     
     private void setupComponents() {
@@ -61,7 +72,7 @@ public class Views {
         
         OpenFileAction importAction = new OpenFileAction(importCallback);
         
-        LeftPanel leftPanelComponent = new LeftPanel(
+        leftPanelComponent = new LeftPanel(
             collectionManager.getTree(), 
             environmentManager.getList(),
             fileSelectionListener, 
@@ -69,8 +80,14 @@ public class Views {
             e -> System.out.println("New collection button clicked")
         );
 
+        setupEnvironmentContextMenu();
+
         environmentManager.getList().addListSelectionListener(event -> {
             if (event.getValueIsAdjusting()) {
+                return;
+            }
+            if (environmentPopupInteraction) {
+                environmentPopupInteraction = false;
                 return;
             }
             int selectedIndex = environmentManager.getList().getSelectedIndex();
@@ -104,6 +121,7 @@ public class Views {
         String filename = file.getName().toLowerCase();
         if (filename.contains("environment")) {
             environmentManager.loadEnvironmentFile(file);
+            updateActiveEnvironmentIndicator();
         } else if (filename.contains("collection")) {
             collectionManager.loadCollectionFile(file);
         } else {
@@ -211,10 +229,83 @@ public class Views {
         
         // Execute the API call through the controller, passing the current item ID
         apiController.executeApiCall(url, method, headersText, bodyText, 
-                                   authType, username, password, token, paramsText, currentItemId);
+                                   authType, username, password, token, paramsText, currentItemId,
+                                   environmentManager.getActiveEnvironmentVariables());
     }
     
     public void show() {
         mainWindow.getFrame().setVisible(true);
+    }
+
+    private void updateActiveEnvironmentIndicator() {
+        if (leftPanelComponent != null) {
+            leftPanelComponent.setActiveEnvironmentName(environmentManager.getActiveEnvironmentName());
+        }
+    }
+
+    private void setupEnvironmentContextMenu() {
+        JPopupMenu popupMenu = new JPopupMenu();
+        popupMenu.addPopupMenuListener(new PopupMenuListener() {
+            @Override
+            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
+            }
+
+            @Override
+            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {
+                environmentPopupInteraction = false;
+            }
+
+            @Override
+            public void popupMenuCanceled(PopupMenuEvent e) {
+                environmentPopupInteraction = false;
+            }
+        });
+        JMenuItem activateItem = new JMenuItem("Activate environment");
+        activateItem.addActionListener(e -> activateEnvironmentFromContext());
+        popupMenu.add(activateItem);
+
+        environmentManager.getList().addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                maybeShowEnvironmentPopup(e, popupMenu, activateItem);
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                maybeShowEnvironmentPopup(e, popupMenu, activateItem);
+            }
+        });
+    }
+
+    private void maybeShowEnvironmentPopup(MouseEvent event, JPopupMenu popupMenu, JMenuItem activateItem) {
+        if (!event.isPopupTrigger()) {
+            return;
+        }
+
+        int index = environmentManager.getList().locationToIndex(event.getPoint());
+        if (index < 0) {
+            return;
+        }
+
+        Rectangle cellBounds = environmentManager.getList().getCellBounds(index, index);
+        if (cellBounds == null || !cellBounds.contains(event.getPoint())) {
+            return;
+        }
+
+        environmentPopupInteraction = true;
+        environmentContextIndex = index;
+        EnvironmentDao.EnvironmentInfo info = environmentManager.getEnvironmentInfoAt(index);
+        boolean isActive = info != null && info.id == environmentManager.getActiveEnvironmentId();
+        activateItem.setEnabled(!isActive);
+        activateItem.setText(isActive ? "Environment Active" : "Activate environment");
+        popupMenu.show(environmentManager.getList(), event.getX(), event.getY());
+    }
+
+    private void activateEnvironmentFromContext() {
+        if (environmentContextIndex < 0) {
+            return;
+        }
+        environmentManager.setActiveEnvironmentByIndex(environmentContextIndex);
+        updateActiveEnvironmentIndicator();
     }
 }

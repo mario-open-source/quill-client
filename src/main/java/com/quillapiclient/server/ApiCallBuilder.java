@@ -1,7 +1,7 @@
 package com.quillapiclient.server;
 
 import com.quillapiclient.db.CollectionDao;
-import com.quillapiclient.utility.VariableReplacer;
+import com.quillapiclient.utility.RequestVariableResolver;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -175,11 +175,7 @@ public class ApiCallBuilder {
             return null;
         }
         
-        // Replace variables in the URL first
         String fullUrl = url.trim();
-        if (variables != null && !variables.isEmpty()) {
-            fullUrl = VariableReplacer.replaceVariables(fullUrl, variables);
-        }
         
         try {
         if (!queryParams.isEmpty()) {
@@ -193,13 +189,8 @@ public class ApiCallBuilder {
                     queryString.append("&");
                 }
                 
-                // Replace variables in query parameter keys and values
                 String paramKey = entry.getKey();
                 String paramValue = entry.getValue();
-                if (variables != null && !variables.isEmpty()) {
-                    paramKey = VariableReplacer.replaceVariables(paramKey, variables);
-                    paramValue = VariableReplacer.replaceVariables(paramValue, variables);
-                }
                 
                 queryString.append(URLEncoder.encode(paramKey, StandardCharsets.UTF_8))
                           .append("=")
@@ -211,8 +202,22 @@ public class ApiCallBuilder {
         } catch (Exception e) {
             return null;
         }
-        System.out.println(fullUrl);
         return fullUrl;
+    }
+
+    private void resolveRequestTemplates() {
+        if (variables == null || variables.isEmpty()) {
+            return;
+        }
+
+        RequestVariableResolver resolver = new RequestVariableResolver(variables);
+        url = resolver.resolve(url);
+        body = resolver.resolve(body);
+        username = resolver.resolve(username);
+        password = resolver.resolve(password);
+        token = resolver.resolve(token);
+        headers = resolver.resolveMap(headers);
+        queryParams = resolver.resolveMap(queryParams);
     }
     
     // Add authentication headers
@@ -249,6 +254,8 @@ public class ApiCallBuilder {
         }
         
         try {
+            resolveRequestTemplates();
+
             // Build URL with query parameters
             String fullUrl = buildUrl();
             URI uri = new URI(fullUrl);
@@ -370,6 +377,15 @@ public class ApiCallBuilder {
                                         String bodyText, String authType, 
                                         String username, String password, String token,
                                         String queryParamsText, int itemId) {
+        return fromUI(url, method, headersText, bodyText, authType, username, password, token,
+                queryParamsText, itemId, null);
+    }
+
+    public static ApiCallBuilder fromUI(String url, String method, String headersText,
+                                        String bodyText, String authType,
+                                        String username, String password, String token,
+                                        String queryParamsText, int itemId,
+                                        Map<String, String> runtimeVariables) {
         ApiCallBuilder builder = new ApiCallBuilder()
                 .url(url)
                 .method(method)
@@ -377,13 +393,15 @@ public class ApiCallBuilder {
                 .body(bodyText)
                 .queryParams(queryParamsText);
         
-        // Load variables from database if itemId is provided
+        // Load collection/item variables from database and merge optional runtime variables.
+        Map<String, String> variables = new HashMap<>();
         if (itemId > 0) {
             int collectionId = CollectionDao.getCollectionIdByItemId(itemId);
-            Map<String, String> variables = CollectionDao.getAllVariablesForRequest(collectionId, itemId);
-            if (!variables.isEmpty()) {
-                builder.variables(variables);
-            }
+            variables = CollectionDao.getAllVariablesForRequest(collectionId, itemId);
+        }
+        variables = RequestVariableResolver.mergeVariables(variables, runtimeVariables);
+        if (!variables.isEmpty()) {
+            builder.variables(variables);
         }
         
         // Set authentication
@@ -404,4 +422,3 @@ public class ApiCallBuilder {
         return builder;
     }
 }
-

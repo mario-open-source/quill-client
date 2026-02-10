@@ -9,6 +9,8 @@ import com.quillapiclient.utility.ResponseFormatter;
 import javax.swing.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -25,12 +27,17 @@ public class ApiController {
     
     public void executeApiCall(String url, String method, String headersText, 
                               String bodyText, String authType, String username, 
-                              String password, String token, String paramsText, int itemId) {
+                              String password, String token, String paramsText, int itemId,
+                              Map<String, String> runtimeVariables) {
         if (url.isEmpty()) {
             responsePanel.setResponse(ResponseFormatter.ERROR_URL_EMPTY);
             responsePanel.resetStatusDurationSize();
             return;
         }
+
+        Map<String, String> requestVariables = (runtimeVariables != null)
+                ? new HashMap<>(runtimeVariables)
+                : new HashMap<>();
         
         // Show loading message
         String loadingMessage = createLoadingMessage(url, method, headersText, bodyText, authType);
@@ -43,7 +50,7 @@ public class ApiController {
             try {
                 ApiResponse response = ApiCallBuilder.fromUI(
                     url, method, headersText, bodyText, authType,
-                    username, password, token, paramsText, itemId
+                    username, password, token, paramsText, itemId, requestVariables
                 ).execute();
 
                 // Calculate duration and set it on the response

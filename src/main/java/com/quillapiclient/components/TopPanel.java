@@ -82,7 +82,7 @@ public class TopPanel {
         saveButton.setPreferredSize(new Dimension(saveSize.width, fixedHeight));
         saveButton.setMinimumSize(new Dimension(saveSize.width, fixedHeight));
         saveButton.setMaximumSize(new Dimension(saveSize.width, fixedHeight));
-        
+
         // Use FlowLayout with no gaps to ensure buttons align properly
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         buttons.add(sendButton);
@@ -179,4 +179,3 @@ public class TopPanel {
         return saveButton;
     }
 }
-

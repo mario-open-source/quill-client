@@ -19,8 +19,10 @@ public class LeftPanel {
     private JPanel panel;
     private JTree jTree;
     private JList<String> environmentList;
+    private JLabel titleLabel;
     private JButton buttonImportCollection;
     private JButton buttonNewCollection;
+    private final String APP_TITLE = "QuillClient";
     private final String IMPORT_TEXT = "Import";
     private final String NEW_TEXT = "New";
     public LeftPanel(JTree jTree, JList<String> environmentList, TreeSelectionListener selectionListener,
@@ -63,7 +65,7 @@ public class LeftPanel {
         }
 
         // Label on the left
-        JLabel titleLabel = new JLabel("QuillClient");
+        titleLabel = new JLabel(APP_TITLE);
         titleLabel.setFont(titleLabel.getFont().deriveFont(titleLabel.getFont().getSize2D() + 2f));
         buttonPanel.add(titleLabel, BorderLayout.WEST);
 
@@ -117,5 +119,31 @@ public class LeftPanel {
     
     public JButton getNewButton() {
         return buttonNewCollection;
+    }
+
+    public void setActiveEnvironmentName(String environmentName) {
+        if (titleLabel == null) {
+            return;
+        }
+
+        if (environmentName == null || environmentName.trim().isEmpty()) {
+            titleLabel.setText(APP_TITLE);
+            titleLabel.setToolTipText("No active environment");
+            return;
+        }
+
+        String trimmedName = environmentName.trim();
+        titleLabel.setText("Env: " + abbreviate(trimmedName, 24));
+        titleLabel.setToolTipText("Active environment: " + trimmedName);
+    }
+
+    private String abbreviate(String text, int maxLength) {
+        if (text == null || text.length() <= maxLength) {
+            return text;
+        }
+        if (maxLength <= 3) {
+            return "...";
+        }
+        return text.substring(0, maxLength - 3) + "...";
     }
 }
