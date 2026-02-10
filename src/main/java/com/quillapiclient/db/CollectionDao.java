@@ -1593,4 +1593,29 @@ public class CollectionDao {
             }
         }
     }
+
+    /**
+     * Updates the name of an item (request or folder).
+     *
+     * @param itemId The item ID
+     * @param newName The new name to persist
+     * @return true if one or more rows were updated
+     */
+    public static boolean updateItemName(int itemId, String newName) {
+        if (itemId <= 0 || newName == null || newName.trim().isEmpty()) {
+            return false;
+        }
+
+        Connection conn = LiteConnection.getConnection();
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "UPDATE items SET name = ? WHERE id = ?")) {
+            stmt.setString(1, newName.trim());
+            stmt.setInt(2, itemId);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("Error updating item name: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
 }

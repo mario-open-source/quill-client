@@ -6,8 +6,11 @@ import com.quillapiclient.objects.PostmanCollection;
 
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeCellEditor;
+import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
+import java.awt.Component;
 import java.io.File;
 
 public class CollectionTreeManager {
@@ -17,12 +20,14 @@ public class CollectionTreeManager {
     
     public CollectionTreeManager() {
         DefaultMutableTreeNode emptyRoot = new DefaultMutableTreeNode("Collections");
-        tree = new JTree(emptyRoot);
+        tree = new JTree(createTreeModel(emptyRoot));
         // Set custom renderer to display methods with colors
         tree.setCellRenderer(new com.quillapiclient.components.MethodTreeCellRenderer());
-        
+        setupInlineEditingSupport();
+
         // Add right-click context menu
-        new CollectionTreeContextMenu(tree, this::handleAddRequest, this::handleAddFolder, this::handleDeleteItem);
+        new CollectionTreeContextMenu(tree, this::handleAddRequest, this::handleAddFolder,
+                this::handleDeleteItem, this::handleRenameItem);
     }
 
     /**
@@ -138,6 +143,19 @@ public class CollectionTreeManager {
         }
     }
 
+    private void handleRenameItem(String itemType, int collectionId, Integer itemId, DefaultMutableTreeNode node) {
+        if (collectionId <= 0 || itemId == null || node == null) {
+            return;
+        }
+        if (!"folder".equals(itemType) && !"request".equals(itemType)) {
+            return;
+        }
+
+        TreePath path = new TreePath(node.getPath());
+        tree.setSelectionPath(path);
+        tree.startEditingAtPath(path);
+    }
+
     private void removeNodeFromTree(DefaultMutableTreeNode node) {
         DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
         if (node.getParent() == null) {
@@ -213,6 +231,19 @@ public class CollectionTreeManager {
         return null;
     }
 
+    private DefaultTreeModel createTreeModel(DefaultMutableTreeNode rootNode) {
+        return new EditableCollectionTreeModel(rootNode);
+    }
+
+    private void setupInlineEditingSupport() {
+        tree.setEditable(true);
+        tree.setInvokesStopCellEditing(true);
+
+        if (tree.getCellRenderer() instanceof DefaultTreeCellRenderer renderer) {
+            tree.setCellEditor(new NodeNameTreeCellEditor(tree, renderer));
+        }
+    }
+
 
     /**
      * Loads a Postman collection file, saves it to the database, and adds it to the UI tree.
@@ -253,7 +284,7 @@ public class CollectionTreeManager {
             rootNode.add(collectionNode);
         }
         
-        DefaultTreeModel model = new DefaultTreeModel(rootNode);
+        DefaultTreeModel model = createTreeModel(rootNode);
         tree.setModel(model);
         
         // Expand root node
@@ -367,6 +398,19 @@ public class CollectionTreeManager {
         return requestName + " [" + resolvedMethod + "]";
     }
 
+    private static String extractRequestMethodFromDisplayName(String displayName) {
+        if (displayName == null) {
+            return null;
+        }
+
+        int startIndex = displayName.lastIndexOf('[');
+        int endIndex = displayName.lastIndexOf(']');
+        if (startIndex >= 0 && endIndex > startIndex) {
+            return displayName.substring(startIndex + 1, endIndex).trim();
+        }
+        return null;
+    }
+
     /**
      * Updates the method shown for a request node already present in the tree.
      *
@@ -412,6 +456,92 @@ public class CollectionTreeManager {
     
     public JTree getTree() { 
         return tree; 
+    }
+
+    private class EditableCollectionTreeModel extends DefaultTreeModel {
+        private EditableCollectionTreeModel(DefaultMutableTreeNode root) {
+            super(root);
+        }
+
+        @Override
+        public void valueForPathChanged(TreePath path, Object newValue) {
+            if (path == null) {
+                return;
+            }
+
+            Object pathNode = path.getLastPathComponent();
+            if (!(pathNode instanceof DefaultMutableTreeNode node)) {
+                return;
+            }
+
+            Object userObject = node.getUserObject();
+            if (!(userObject instanceof TreeNodeData nodeData)) {
+                return;
+            }
+
+            if (!"folder".equals(nodeData.itemType) && !"request".equals(nodeData.itemType)) {
+                return;
+            }
+
+            String newName = newValue != null ? newValue.toString().trim() : "";
+            if (newName.isEmpty()) {
+                nodeChanged(node);
+                return;
+            }
+
+            if (newName.equals(nodeData.itemName)) {
+                nodeChanged(node);
+                return;
+            }
+
+            boolean saved = CollectionDao.updateItemName(nodeData.itemId, newName);
+            if (!saved) {
+                JOptionPane.showMessageDialog(
+                    tree,
+                    "Failed to rename " + nodeData.itemType + ".",
+                    "Rename Failed",
+                    JOptionPane.ERROR_MESSAGE
+                );
+                nodeChanged(node);
+                return;
+            }
+
+            String displayName = "request".equals(nodeData.itemType)
+                    ? buildRequestDisplayName(newName, extractRequestMethodFromDisplayName(nodeData.displayName), "GET")
+                    : newName;
+            node.setUserObject(new TreeNodeData(
+                    nodeData.itemId,
+                    newName,
+                    nodeData.itemType,
+                    displayName,
+                    nodeData.collectionId
+            ));
+            nodeChanged(node);
+        }
+    }
+
+    private static class NodeNameTreeCellEditor extends DefaultTreeCellEditor {
+        private NodeNameTreeCellEditor(JTree tree, DefaultTreeCellRenderer renderer) {
+            super(tree, renderer);
+        }
+
+        @Override
+        public Component getTreeCellEditorComponent(JTree tree, Object value, boolean isSelected,
+                                                    boolean expanded, boolean leaf, int row) {
+            Component component = super.getTreeCellEditorComponent(
+                tree, value, isSelected, expanded, leaf, row
+            );
+
+            if (value instanceof DefaultMutableTreeNode node
+                    && node.getUserObject() instanceof TreeNodeData nodeData
+                    && ("folder".equals(nodeData.itemType) || "request".equals(nodeData.itemType))
+                    && editingComponent instanceof JTextField textField) {
+                textField.setText(nodeData.itemName);
+                textField.selectAll();
+            }
+
+            return component;
+        }
     }
     
     /**

@@ -13,6 +13,7 @@ public class CollectionTreeContextMenu {
     private final AddRequestHandler addRequestHandler;
     private final AddFolderHandler addFolderHandler;
     private final DeleteHandler deleteHandler;
+    private final RenameHandler renameHandler;
     private final JPopupMenu popupMenu;
     private Integer contextCollectionId;
     private Integer contextParentId;
@@ -21,13 +22,16 @@ public class CollectionTreeContextMenu {
     private DefaultMutableTreeNode contextNode;
     private JMenuItem addRequestItem;
     private JMenuItem addFolderItem;
+    private JMenuItem renameItem;
     private JMenuItem deleteItem;
 
-    public CollectionTreeContextMenu(JTree tree, AddRequestHandler addRequestHandler, AddFolderHandler addFolderHandler, DeleteHandler deleteHandler) {
+    public CollectionTreeContextMenu(JTree tree, AddRequestHandler addRequestHandler, AddFolderHandler addFolderHandler,
+                                     DeleteHandler deleteHandler, RenameHandler renameHandler) {
         this.tree = tree;
         this.addRequestHandler = addRequestHandler;
         this.addFolderHandler = addFolderHandler;
         this.deleteHandler = deleteHandler;
+        this.renameHandler = renameHandler;
         this.popupMenu = new JPopupMenu();
         setupContextMenu();
     }
@@ -47,6 +51,13 @@ public class CollectionTreeContextMenu {
             }
         });
 
+        renameItem = new JMenuItem("Rename");
+        renameItem.addActionListener(event -> {
+            if (contextCollectionId != null && contextItemType != null && contextItemId != null && contextNode != null) {
+                renameHandler.onRename(contextItemType, contextCollectionId, contextItemId, contextNode);
+            }
+        });
+
         deleteItem = new JMenuItem("Delete");
         deleteItem.addActionListener(event -> {
             if (contextCollectionId != null && contextItemType != null && contextNode != null) {
@@ -56,6 +67,7 @@ public class CollectionTreeContextMenu {
 
         popupMenu.add(addRequestItem);
         popupMenu.add(addFolderItem);
+        popupMenu.add(renameItem);
         popupMenu.add(deleteItem);
 
         tree.addMouseListener(new MouseAdapter() {
@@ -108,6 +120,7 @@ public class CollectionTreeContextMenu {
         }
 
         if (collectionId != null && collectionId > 0 && itemType != null) {
+            boolean isRenamable = "folder".equals(itemType) || "request".equals(itemType);
             contextCollectionId = collectionId;
             contextParentId = parentId;
             contextItemType = itemType;
@@ -115,10 +128,20 @@ public class CollectionTreeContextMenu {
             contextNode = node;
             addRequestItem.setEnabled(isFolder);
             addFolderItem.setEnabled(isFolder);
+            renameItem.setEnabled(isRenamable);
+            renameItem.setText(buildRenameLabel(itemType));
             deleteItem.setEnabled(true);
             deleteItem.setText(buildDeleteLabel(itemType));
             popupMenu.show(tree, e.getX(), e.getY());
         }
+    }
+
+    private String buildRenameLabel(String itemType) {
+        return switch (itemType) {
+            case "folder" -> "Rename Folder";
+            case "request" -> "Rename Request";
+            default -> "Rename";
+        };
     }
 
     private String buildDeleteLabel(String itemType) {
@@ -156,5 +179,10 @@ public class CollectionTreeContextMenu {
     @FunctionalInterface
     public interface DeleteHandler {
         void onDelete(String itemType, int collectionId, Integer itemId, DefaultMutableTreeNode node);
+    }
+
+    @FunctionalInterface
+    public interface RenameHandler {
+        void onRename(String itemType, int collectionId, Integer itemId, DefaultMutableTreeNode node);
     }
 }
