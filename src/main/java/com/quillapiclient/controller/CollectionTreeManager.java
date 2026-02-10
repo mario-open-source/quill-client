@@ -366,6 +366,40 @@ public class CollectionTreeManager {
         }
         return requestName + " [" + resolvedMethod + "]";
     }
+
+    /**
+     * Updates the method shown for a request node already present in the tree.
+     *
+     * @param itemId The request item ID
+     * @param method The HTTP method to display
+     */
+    public void updateRequestNodeMethod(int itemId, String method) {
+        if (itemId <= 0) {
+            return;
+        }
+
+        DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+        DefaultMutableTreeNode root = (DefaultMutableTreeNode) model.getRoot();
+
+        DefaultMutableTreeNode requestNode = findNodeDepthFirst(root, uo ->
+                (uo instanceof TreeNodeData nd)
+                        && "request".equals(nd.itemType)
+                        && nd.itemId == itemId
+        );
+
+        if (requestNode == null) {
+            return;
+        }
+
+        Object userObject = requestNode.getUserObject();
+        if (!(userObject instanceof TreeNodeData nodeData)) {
+            return;
+        }
+
+        requestNode.setUserObject(buildRequestNodeData(nodeData.itemId, nodeData.itemName, method, "GET"));
+        model.nodeChanged(requestNode);
+        tree.repaint();
+    }
     
     /**
      * Gets the current collection ID.

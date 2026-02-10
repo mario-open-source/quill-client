@@ -49,6 +49,7 @@ public class AppColorTheme {
     public static final Color WARNING_BACKGROUND = new Color(40, 35, 20);
 
     public static final Color UNSAVED_CHANGES_COLOR = new Color(100,149,237);
+    public static final Color TABLE_BACKGROUND = new Color(30, 30, 30);
     
     /**
      * Applies the dark theme colors to the UIManager.
@@ -69,6 +70,7 @@ public class AppColorTheme {
         UIManager.put("ScrollPane.viewportBackground", SCROLL_PANE_BACKGROUND);
         UIManager.put("TabbedPane.background", TABBED_PANE_BACKGROUND);
         UIManager.put("TabbedPane.selected", TABBED_PANE_SELECTED);
+        UIManager.put("Table.background", TABLE_BACKGROUND);
         
         // Border colors
         UIManager.put("Component.borderColor", BORDER_COLOR);

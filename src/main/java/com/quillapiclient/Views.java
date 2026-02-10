@@ -17,6 +17,7 @@ import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.utility.ResponseFormatter;
 
 import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 import java.io.File;
 
 public class Views {
@@ -76,6 +77,8 @@ public class Views {
             EnvironmentDao.EnvironmentInfo info = environmentManager.getEnvironmentInfoAt(selectedIndex);
             if (info != null) {
                 new EnvironmentVariablesWindow(info.id, info.name);
+                // Allow reopening the same environment by making next click a fresh selection change.
+                SwingUtilities.invokeLater(() -> environmentManager.getList().clearSelection());
             }
         });
         
@@ -179,6 +182,7 @@ public class Views {
         
         if (success) {
             System.out.println("Request saved successfully");
+            collectionManager.updateRequestNodeMethod(currentItemId, request.getMethod());
             // Clear unsaved changes and reload from database
             requestPanel.clearUnsavedChanges();
             Request updatedRequest = CollectionDao.getRequestByItemId(currentItemId);

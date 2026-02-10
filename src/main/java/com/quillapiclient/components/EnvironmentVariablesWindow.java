@@ -2,6 +2,7 @@ package com.quillapiclient.components;
 
 import com.quillapiclient.db.EnvironmentDao;
 import com.quillapiclient.objects.PostmanEnvironmentValue;
+import com.quillapiclient.utility.TableEditUtil;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
@@ -11,6 +12,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.table.AbstractTableModel;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
@@ -22,6 +24,7 @@ public class EnvironmentVariablesWindow {
     private final String environmentName;
     private final JFrame frame;
     private final EnvironmentValuesTableModel tableModel;
+    private JTable table;
 
     public EnvironmentVariablesWindow(int environmentId, String environmentName) {
         this.environmentId = environmentId;
@@ -39,7 +42,7 @@ public class EnvironmentVariablesWindow {
         header.setBorder(javax.swing.BorderFactory.createEmptyBorder(8, 8, 8, 8));
         frame.add(header, BorderLayout.NORTH);
 
-        JTable table = new JTable(tableModel);
+        table = new JTable(tableModel);
         table.setFillsViewportHeight(true);
         table.setPreferredScrollableViewportSize(new Dimension(500, 300));
         frame.add(new JScrollPane(table), BorderLayout.CENTER);
@@ -47,7 +50,24 @@ public class EnvironmentVariablesWindow {
         JButton addButton = new JButton("Add");
         JButton saveButton = new JButton("Save");
 
-        addButton.addActionListener(event -> tableModel.addEmptyRow());
+        addButton.addActionListener(event -> {
+            int newRow = tableModel.addEmptyRow();
+            if (newRow < 0) {
+                return;
+            }
+
+            // Ensure the inserted row is visible and ready for immediate typing.
+            table.setRowSelectionInterval(newRow, newRow);
+            table.setColumnSelectionInterval(0, 0);
+            table.scrollRectToVisible(table.getCellRect(newRow, 0, true));
+            table.requestFocusInWindow();
+            table.editCellAt(newRow, 0);
+            SwingUtilities.invokeLater(() -> {
+                if (table.getEditorComponent() != null) {
+                    table.getEditorComponent().requestFocusInWindow();
+                }
+            });
+        });
         saveButton.addActionListener(event -> saveValues());
 
         JPanel buttonPanel = new JPanel(new BorderLayout());
@@ -62,6 +82,7 @@ public class EnvironmentVariablesWindow {
     }
 
     private void saveValues() {
+        TableEditUtil.commitOrCancelTableEdit(table);
         List<PostmanEnvironmentValue> values = tableModel.getValuesForSave();
         boolean success = EnvironmentDao.replaceEnvironmentValues(environmentId, values);
         if (success) {
@@ -122,10 +143,11 @@ public class EnvironmentVariablesWindow {
             return true;
         }
 
-        public void addEmptyRow() {
+        public int addEmptyRow() {
             values.add(new PostmanEnvironmentValue());
             int newRow = values.size() - 1;
             fireTableRowsInserted(newRow, newRow);
+            return newRow;
         }
 
         public List<PostmanEnvironmentValue> getValuesForSave() {

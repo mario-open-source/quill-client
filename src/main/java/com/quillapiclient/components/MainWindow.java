@@ -1,9 +1,11 @@
 package com.quillapiclient.components;
+
+import com.quillapiclient.utility.TableEditUtil;
+
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JTable;
 import javax.swing.JSplitPane;
-import javax.swing.table.TableCellEditor;
 
 public class MainWindow {
     private JFrame frame;
@@ -23,7 +25,7 @@ public class MainWindow {
     public void setLayout(LeftPanel leftPanel, RequestPanel mainPanel, JComponent responsePanel) {
         JTable headersTable = mainPanel.getHeadersPanel().getTable();
         leftPanel.getTree().addTreeSelectionListener(e -> {
-            commitOrCancelTableEdit(headersTable);  // and any other tables
+            TableEditUtil.commitOrCancelTableEdit(headersTable);  // and any other tables
         });
         verticalSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, mainPanel.getPanel(), responsePanel);
         verticalSplitPane.setDividerLocation(750);
@@ -34,21 +36,6 @@ public class MainWindow {
         horizontalSplitPane.setContinuousLayout(true);
 
         frame.getContentPane().add(horizontalSplitPane);
-    }
-
-    private static void commitOrCancelTableEdit(JTable table) {
-        if (table == null) return;
-
-        if (table.isEditing()) {
-            TableCellEditor editor = table.getCellEditor();
-            if (editor != null) {
-                // Try commit. If commit fails (validation), cancel to prevent crashes.
-                boolean committed = editor.stopCellEditing();
-                if (!committed) {
-                    editor.cancelCellEditing();
-                }
-            }
-        }
     }
 
     public JFrame getFrame() {
