@@ -1,5 +1,7 @@
 package com.quillapiclient.utility;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quillapiclient.server.ApiResponse;
 
 import java.time.LocalDateTime;
@@ -11,6 +13,7 @@ import java.util.Map;
  * Provides consistent formatting across the application.
  */
 public class ResponseFormatter {
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
     
     // Common constants to reduce duplication
     public static final String NO_RESPONSE_MESSAGE = "There is no response for this request";
@@ -184,39 +187,8 @@ public class ResponseFormatter {
      */
     private static String formatJson(String json) {
         try {
-            // Simple indentation for JSON
-            int indentLevel = 0;
-            StringBuilder formatted = new StringBuilder();
-            boolean inQuotes = false;
-            
-            for (char c : json.toCharArray()) {
-                if (c == '\"' && (formatted.length() == 0 || formatted.charAt(formatted.length() - 1) != '\\')) {
-                    inQuotes = !inQuotes;
-                }
-                
-                if (!inQuotes) {
-                    if (c == '{' || c == '[') {
-                        formatted.append(c).append("\n");
-                        indentLevel++;
-                        formatted.append(getIndent(indentLevel));
-                    } else if (c == '}' || c == ']') {
-                        formatted.append("\n");
-                        indentLevel--;
-                        formatted.append(getIndent(indentLevel));
-                        formatted.append(c);
-                    } else if (c == ',') {
-                        formatted.append(c).append("\n");
-                        formatted.append(getIndent(indentLevel));
-                    } else if (c == ':') {
-                        formatted.append(c).append(" ");
-                    } else {
-                        formatted.append(c);
-                    }
-                } else {
-                    formatted.append(c);
-                }
-            }
-            return formatted.toString();
+            JsonNode jsonNode = JSON_MAPPER.readTree(json);
+            return JSON_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(jsonNode);
         } catch (Exception e) {
             return json; // Return original if formatting fails
         }
@@ -368,4 +340,3 @@ public class ResponseFormatter {
         return errorBuilder.toString();
     }
 }
-
