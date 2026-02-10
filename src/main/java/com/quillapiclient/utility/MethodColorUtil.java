@@ -21,7 +21,7 @@ public class MethodColorUtil {
             case "GET":
                 return new Color(0, 173, 87);
             case "POST":
-                return new Color(252, 161, 48);
+                return new Color(234, 179, 8); 
             case "PUT":
                 return new Color(21, 124, 225);
             case "DELETE":
