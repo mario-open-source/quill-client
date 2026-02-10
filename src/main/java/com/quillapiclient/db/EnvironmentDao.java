@@ -164,6 +164,47 @@ public class EnvironmentDao {
         return environments;
     }
 
+    public static int createEnvironment(String environmentName) {
+        if (environmentName == null || environmentName.trim().isEmpty()) {
+            return -1;
+        }
+
+        Connection conn = LiteConnection.getConnection();
+        try (PreparedStatement stmt = conn.prepareStatement(
+            "INSERT INTO environments (name) VALUES (?)",
+            Statement.RETURN_GENERATED_KEYS)) {
+            stmt.setString(1, environmentName.trim());
+            stmt.executeUpdate();
+
+            ResultSet rs = stmt.getGeneratedKeys();
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error creating environment: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return -1;
+    }
+
+    public static boolean updateEnvironmentName(int environmentId, String newName) {
+        if (environmentId <= 0 || newName == null || newName.trim().isEmpty()) {
+            return false;
+        }
+
+        Connection conn = LiteConnection.getConnection();
+        try (PreparedStatement stmt = conn.prepareStatement(
+            "UPDATE environments SET name = ? WHERE id = ?")) {
+            stmt.setString(1, newName.trim());
+            stmt.setInt(2, environmentId);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("Error updating environment name: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     public static List<PostmanEnvironmentValue> getEnvironmentValues(int environmentId) {
         List<PostmanEnvironmentValue> values = new ArrayList<>();
         Connection conn = LiteConnection.getConnection();

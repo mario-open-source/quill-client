@@ -77,7 +77,9 @@ public class Views {
             environmentManager.getList(),
             fileSelectionListener, 
             importAction, 
-            e -> System.out.println("New collection button clicked")
+            e -> System.out.println("New collection button clicked"),
+            e -> collectionManager.createCollectionAndStartEditing(),
+            e -> environmentManager.createEnvironmentAndStartEditing()
         );
 
         setupEnvironmentContextMenu();

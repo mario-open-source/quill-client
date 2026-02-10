@@ -22,18 +22,25 @@ public class LeftPanel {
     private JLabel titleLabel;
     private JButton buttonImportCollection;
     private JButton buttonNewCollection;
+    private JButton buttonAddCollectionTab;
+    private JButton buttonAddEnvironmentTab;
     private final String APP_TITLE = "QuillClient";
     private final String IMPORT_TEXT = "Import";
     private final String NEW_TEXT = "New";
+    private final String ADD_TEXT = "+";
     public LeftPanel(JTree jTree, JList<String> environmentList, TreeSelectionListener selectionListener,
-                     ActionListener importActionListener, ActionListener newActionListener) {
+                     ActionListener importActionListener, ActionListener newActionListener,
+                     ActionListener addCollectionTabActionListener, ActionListener addEnvironmentTabActionListener) {
         this.jTree = jTree;
         this.environmentList = environmentList;
-        this.panel = createPanelWithTree(jTree, environmentList, selectionListener, importActionListener, newActionListener);
+        this.panel = createPanelWithTree(jTree, environmentList, selectionListener, importActionListener,
+            newActionListener, addCollectionTabActionListener, addEnvironmentTabActionListener);
     }
     
     private JPanel createPanelWithTree(JTree jTree, JList<String> environmentList, TreeSelectionListener selectionListener,
-                                       ActionListener importActionListener, ActionListener newActionListener) {
+                                       ActionListener importActionListener, ActionListener newActionListener,
+                                       ActionListener addCollectionTabActionListener,
+                                       ActionListener addEnvironmentTabActionListener) {
         // Use BorderLayout to properly fill available space
         JPanel panel = new JPanel(new BorderLayout());
 
@@ -95,6 +102,8 @@ public class LeftPanel {
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.addTab("Collections", collectionsPane);
         tabbedPane.addTab("Environments", environmentsPane);
+        tabbedPane.setTabComponentAt(0, createTabHeader("Collections", true, addCollectionTabActionListener));
+        tabbedPane.setTabComponentAt(1, createTabHeader("Environments", false, addEnvironmentTabActionListener));
 
         panel.add(tabbedPane, BorderLayout.CENTER);
 
@@ -121,6 +130,31 @@ public class LeftPanel {
         return buttonNewCollection;
     }
 
+    private JPanel createTabHeader(String title, boolean isCollectionsTab, ActionListener addActionListener) {
+        JPanel tabHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        tabHeader.setOpaque(false);
+
+        JLabel tabLabel = new JLabel(title);
+        JButton addButton = new JButton(ADD_TEXT);
+        addButton.setMargin(new Insets(0, 6, 0, 6));
+        addButton.setFocusable(false);
+        if (addActionListener != null) {
+            addButton.addActionListener(addActionListener);
+        } else {
+            addButton.setEnabled(false);
+        }
+
+        if (isCollectionsTab) {
+            buttonAddCollectionTab = addButton;
+        } else {
+            buttonAddEnvironmentTab = addButton;
+        }
+
+        tabHeader.add(tabLabel);
+        tabHeader.add(addButton);
+        return tabHeader;
+    }
+
     public void setActiveEnvironmentName(String environmentName) {
         if (titleLabel == null) {
             return;
@@ -133,7 +167,7 @@ public class LeftPanel {
         }
 
         String trimmedName = environmentName.trim();
-        titleLabel.setText("Env: " + abbreviate(trimmedName, 24));
+        titleLabel.setText(APP_TITLE + " - Env: " + abbreviate(trimmedName, 24));
         titleLabel.setToolTipText("Active environment: " + trimmedName);
     }
 

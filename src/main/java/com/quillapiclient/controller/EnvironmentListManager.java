@@ -6,10 +6,21 @@ import com.quillapiclient.objects.PostmanEnvironment;
 
 import javax.swing.DefaultListModel;
 import javax.swing.JList;
+import javax.swing.JLayeredPane;
 import javax.swing.JOptionPane;
+import javax.swing.JRootPane;
+import javax.swing.JTextField;
+import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.event.KeyEvent;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class EnvironmentListManager {
     private final JList<String> list;
@@ -17,6 +28,7 @@ public class EnvironmentListManager {
     private final java.util.List<EnvironmentDao.EnvironmentInfo> environmentInfos;
     private Integer activeEnvironmentId;
     private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final String DEFAULT_NEW_ENVIRONMENT_NAME = "New Environment";
 
     public EnvironmentListManager() {
         listModel = new DefaultListModel<>();
@@ -78,6 +90,27 @@ public class EnvironmentListManager {
         activeEnvironmentId = (info != null) ? info.id : null;
     }
 
+    public void createEnvironmentAndStartEditing() {
+        int environmentId = EnvironmentDao.createEnvironment(DEFAULT_NEW_ENVIRONMENT_NAME);
+        if (environmentId <= 0) {
+            JOptionPane.showMessageDialog(
+                null,
+                "Failed to create new environment",
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+            );
+            return;
+        }
+
+        EnvironmentDao.EnvironmentInfo newInfo = new EnvironmentDao.EnvironmentInfo(
+            environmentId, DEFAULT_NEW_ENVIRONMENT_NAME
+        );
+        listModel.add(0, DEFAULT_NEW_ENVIRONMENT_NAME);
+        environmentInfos.add(0, newInfo);
+        list.ensureIndexIsVisible(0);
+        startInlineEdit(0, newInfo);
+    }
+
     public int getActiveEnvironmentId() {
         return activeEnvironmentId != null ? activeEnvironmentId : -1;
     }
@@ -112,5 +145,82 @@ public class EnvironmentListManager {
             environmentVariables.put(value.getKey().trim(), value.getValue() != null ? value.getValue() : "");
         }
         return environmentVariables;
+    }
+
+    private void startInlineEdit(int index, EnvironmentDao.EnvironmentInfo info) {
+        Rectangle cellBounds = list.getCellBounds(index, index);
+        if (cellBounds == null) {
+            return;
+        }
+
+        JRootPane rootPane = SwingUtilities.getRootPane(list);
+        if (rootPane == null) {
+            return;
+        }
+
+        JTextField editor = new JTextField(info.name);
+        editor.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(120, 120, 120)));
+        editor.setFocusTraversalKeysEnabled(false);
+
+        Point location = SwingUtilities.convertPoint(list, cellBounds.x, cellBounds.y, rootPane.getLayeredPane());
+        editor.setBounds(location.x, location.y, Math.max(cellBounds.width, 180), cellBounds.height);
+        rootPane.getLayeredPane().add(editor, JLayeredPane.POPUP_LAYER);
+        rootPane.getLayeredPane().repaint();
+        AtomicBoolean finished = new AtomicBoolean(false);
+
+        Runnable cancelEdit = () -> {
+            if (!finished.compareAndSet(false, true)) {
+                return;
+            }
+            rootPane.getLayeredPane().remove(editor);
+            rootPane.getLayeredPane().repaint();
+        };
+
+        Runnable commitEdit = () -> {
+            if (finished.get()) {
+                return;
+            }
+            String newName = editor.getText() != null ? editor.getText().trim() : "";
+            if (newName.isEmpty()) {
+                cancelEdit.run();
+                return;
+            }
+
+            if (!newName.equals(info.name)) {
+                boolean saved = EnvironmentDao.updateEnvironmentName(info.id, newName);
+                if (saved) {
+                    listModel.set(index, newName);
+                    environmentInfos.set(index, new EnvironmentDao.EnvironmentInfo(info.id, newName));
+                } else {
+                    JOptionPane.showMessageDialog(
+                        null,
+                        "Failed to rename environment",
+                        "Rename Failed",
+                        JOptionPane.ERROR_MESSAGE
+                    );
+                }
+            }
+            cancelEdit.run();
+        };
+
+        editor.addActionListener(e -> commitEdit.run());
+        editor.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "cancelEdit");
+        editor.getActionMap().put("cancelEdit", new javax.swing.AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                cancelEdit.run();
+            }
+        });
+        editor.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent e) {
+                commitEdit.run();
+            }
+        });
+
+        SwingUtilities.invokeLater(() -> {
+            editor.requestFocusInWindow();
+            editor.selectAll();
+        });
     }
 }

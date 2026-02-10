@@ -404,6 +404,60 @@ public class CollectionDao {
         
         return collections;
     }
+
+    /**
+     * Creates a new empty collection.
+     *
+     * @param collectionName The collection name
+     * @return The new collection ID, or -1 if create failed
+     */
+    public static int createCollection(String collectionName) {
+        if (collectionName == null || collectionName.trim().isEmpty()) {
+            return -1;
+        }
+
+        Connection conn = LiteConnection.getConnection();
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "INSERT INTO collections (name) VALUES (?)",
+                Statement.RETURN_GENERATED_KEYS)) {
+            stmt.setString(1, collectionName.trim());
+            stmt.executeUpdate();
+
+            ResultSet rs = stmt.getGeneratedKeys();
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error creating collection: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return -1;
+    }
+
+    /**
+     * Updates collection name.
+     *
+     * @param collectionId The collection ID
+     * @param newName The new name
+     * @return true when update succeeded
+     */
+    public static boolean updateCollectionName(int collectionId, String newName) {
+        if (collectionId <= 0 || newName == null || newName.trim().isEmpty()) {
+            return false;
+        }
+
+        Connection conn = LiteConnection.getConnection();
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "UPDATE collections SET name = ? WHERE id = ?")) {
+            stmt.setString(1, newName.trim());
+            stmt.setInt(2, collectionId);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("Error updating collection name: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
     
     /**
      * Gets the most recently loaded collection ID.

@@ -244,6 +244,27 @@ public class CollectionTreeManager {
         }
     }
 
+    public void createCollectionAndStartEditing() {
+        String defaultName = "New Collection";
+        int collectionId = CollectionDao.createCollection(defaultName);
+        if (collectionId <= 0) {
+            JOptionPane.showMessageDialog(
+                tree,
+                "Failed to create new collection",
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+            );
+            return;
+        }
+
+        DefaultMutableTreeNode collectionNode = addCollectionToTree(collectionId, defaultName);
+        if (collectionNode != null) {
+            TreePath path = new TreePath(collectionNode.getPath());
+            tree.setSelectionPath(path);
+            tree.startEditingAtPath(path);
+        }
+    }
+
 
     /**
      * Loads a Postman collection file, saves it to the database, and adds it to the UI tree.
@@ -298,7 +319,7 @@ public class CollectionTreeManager {
      * @param collectionId The collection ID
      * @param collectionName The collection name
      */
-    private void addCollectionToTree(int collectionId, String collectionName) {
+    private DefaultMutableTreeNode addCollectionToTree(int collectionId, String collectionName) {
         DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
         DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) model.getRoot();
         
@@ -328,6 +349,7 @@ public class CollectionTreeManager {
         // Expand root if not already expanded
         TreePath rootPath = new TreePath(rootNode);
         tree.expandPath(rootPath);
+        return collectionNode;
     }
     
     /**
@@ -475,6 +497,30 @@ public class CollectionTreeManager {
             }
 
             Object userObject = node.getUserObject();
+            if (userObject instanceof CollectionRootData collectionRootData) {
+                String newName = newValue != null ? newValue.toString().trim() : "";
+                if (newName.isEmpty() || newName.equals(collectionRootData.collectionName)) {
+                    nodeChanged(node);
+                    return;
+                }
+
+                boolean saved = CollectionDao.updateCollectionName(collectionRootData.collectionId, newName);
+                if (!saved) {
+                    JOptionPane.showMessageDialog(
+                        tree,
+                        "Failed to rename collection.",
+                        "Rename Failed",
+                        JOptionPane.ERROR_MESSAGE
+                    );
+                    nodeChanged(node);
+                    return;
+                }
+
+                node.setUserObject(new CollectionRootData(collectionRootData.collectionId, newName));
+                nodeChanged(node);
+                return;
+            }
+
             if (!(userObject instanceof TreeNodeData nodeData)) {
                 return;
             }
@@ -533,11 +579,15 @@ public class CollectionTreeManager {
             );
 
             if (value instanceof DefaultMutableTreeNode node
-                    && node.getUserObject() instanceof TreeNodeData nodeData
-                    && ("folder".equals(nodeData.itemType) || "request".equals(nodeData.itemType))
                     && editingComponent instanceof JTextField textField) {
-                textField.setText(nodeData.itemName);
-                textField.selectAll();
+                if (node.getUserObject() instanceof TreeNodeData nodeData
+                        && ("folder".equals(nodeData.itemType) || "request".equals(nodeData.itemType))) {
+                    textField.setText(nodeData.itemName);
+                    textField.selectAll();
+                } else if (node.getUserObject() instanceof CollectionRootData collectionRootData) {
+                    textField.setText(collectionRootData.collectionName);
+                    textField.selectAll();
+                }
             }
 
             return component;
