@@ -32,13 +32,6 @@ public class ResponseFormatter {
         }
         
         StringBuilder responseText = new StringBuilder();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(TIMESTAMP_FORMAT);
-        String timestamp = LocalDateTime.now().format(formatter);
-        
-        // Response header
-        String message = timestampMessage != null ? timestampMessage : "Response";
-        responseText.append("[").append(timestamp).append("] ").append(message).append("\n");
-        responseText.append(SEPARATOR_LONG).append("\n");
         
         // Headers section
         if (response.getHeaders() != null && !response.getHeaders().isEmpty()) {
