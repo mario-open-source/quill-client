@@ -205,12 +205,12 @@ public class EnvironmentDao {
         }
     }
 
-    public static List<PostmanEnvironmentValue> getEnvironmentValues(int environmentId) {
-        List<PostmanEnvironmentValue> values = new ArrayList<>();
+    public static List<EnvironmentValueRecord> getEnvironmentValueRecords(int environmentId) {
+        List<EnvironmentValueRecord> records = new ArrayList<>();
         Connection conn = LiteConnection.getConnection();
 
         try (PreparedStatement stmt = conn.prepareStatement(
-            "SELECT variable_key, variable_value, variable_type, enabled FROM environment_values "
+            "SELECT id, variable_key, variable_value, variable_type, enabled FROM environment_values "
                 + "WHERE environment_id = ? ORDER BY sort_order ASC, id ASC")) {
             stmt.setInt(1, environmentId);
             ResultSet rs = stmt.executeQuery();
@@ -225,14 +225,52 @@ public class EnvironmentDao {
                 } else {
                     value.setEnabled(enabled == 1);
                 }
-                values.add(value);
+                records.add(new EnvironmentValueRecord(rs.getInt("id"), value));
             }
         } catch (SQLException e) {
             System.err.println("Error loading environment values from database: " + e.getMessage());
             e.printStackTrace();
         }
 
+        return records;
+    }
+
+    public static List<PostmanEnvironmentValue> getEnvironmentValues(int environmentId) {
+        List<PostmanEnvironmentValue> values = new ArrayList<>();
+        for (EnvironmentValueRecord record : getEnvironmentValueRecords(environmentId)) {
+            values.add(record.value);
+        }
         return values;
+    }
+
+    public static boolean deleteEnvironmentValuesByIds(int environmentId, List<Integer> valueIds) {
+        if (environmentId <= 0 || valueIds == null || valueIds.isEmpty()) {
+            return true;
+        }
+
+        Connection conn = LiteConnection.getConnection();
+        try (PreparedStatement stmt = conn.prepareStatement(
+            "DELETE FROM environment_values WHERE environment_id = ? AND id = ?")) {
+            boolean hasBatch = false;
+            for (Integer valueId : valueIds) {
+                if (valueId == null || valueId <= 0) {
+                    continue;
+                }
+                stmt.setInt(1, environmentId);
+                stmt.setInt(2, valueId);
+                stmt.addBatch();
+                hasBatch = true;
+            }
+
+            if (hasBatch) {
+                stmt.executeBatch();
+            }
+            return true;
+        } catch (SQLException e) {
+            System.err.println("Error deleting environment values: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
     }
 
     public static boolean replaceEnvironmentValues(int environmentId, List<PostmanEnvironmentValue> values) {
@@ -279,6 +317,16 @@ public class EnvironmentDao {
         public EnvironmentInfo(int id, String name) {
             this.id = id;
             this.name = name;
+        }
+    }
+
+    public static class EnvironmentValueRecord {
+        public final int id;
+        public final PostmanEnvironmentValue value;
+
+        public EnvironmentValueRecord(int id, PostmanEnvironmentValue value) {
+            this.id = id;
+            this.value = value;
         }
     }
 }
