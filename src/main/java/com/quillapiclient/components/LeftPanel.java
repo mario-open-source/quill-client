@@ -3,6 +3,7 @@ package com.quillapiclient.components;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.event.ActionListener;
 
@@ -44,46 +45,40 @@ public class LeftPanel {
         // Use BorderLayout to properly fill available space
         JPanel panel = new JPanel(new BorderLayout());
 
-        // Panel for Import and New buttons
-        JPanel buttonPanel = new JPanel(new BorderLayout());
+        // Top area: line 1 = label, line 2 = Import button
+        JPanel topPanel = new JPanel(new GridLayout(2, 1, 0, 4));
 
-        // Set fixed height for all buttons (30 pixels to match TopPanel) - only constrain height, not width
+        // Line 1: label
+        titleLabel = new JLabel(APP_TITLE);
+        titleLabel.setFont(titleLabel.getFont().deriveFont(titleLabel.getFont().getSize2D() + 2f));
+        topPanel.add(titleLabel);
+
+        // Line 2: Import button
         int fixedHeight = 35;
-        
         buttonImportCollection = new JButton(IMPORT_TEXT);
-        buttonImportCollection.setMargin(new Insets(0, 10, 0, 10)); // Remove vertical padding
+        buttonImportCollection.setMargin(new Insets(0, 10, 0, 10));
         Dimension importSize = buttonImportCollection.getPreferredSize();
         buttonImportCollection.setPreferredSize(new Dimension(importSize.width, fixedHeight));
         buttonImportCollection.setMinimumSize(new Dimension(importSize.width, fixedHeight));
         buttonImportCollection.setMaximumSize(new Dimension(importSize.width, fixedHeight));
-        
+        if (importActionListener != null) {
+            buttonImportCollection.addActionListener(importActionListener);
+        }
+        JPanel buttonRow = new JPanel(new BorderLayout());
+        buttonRow.add(buttonImportCollection, BorderLayout.WEST);
+        topPanel.add(buttonRow);
+
         buttonNewCollection = new JButton(NEW_TEXT);
-        buttonNewCollection.setMargin(new Insets(0, 10, 0, 10)); // Remove vertical padding
+        buttonNewCollection.setMargin(new Insets(0, 10, 0, 10));
         Dimension newSize = buttonNewCollection.getPreferredSize();
         buttonNewCollection.setPreferredSize(new Dimension(newSize.width, fixedHeight));
         buttonNewCollection.setMinimumSize(new Dimension(newSize.width, fixedHeight));
         buttonNewCollection.setMaximumSize(new Dimension(newSize.width, fixedHeight));
-        
-        if (importActionListener != null) {
-            buttonImportCollection.addActionListener(importActionListener);
-        }
         if (newActionListener != null) {
             buttonNewCollection.addActionListener(newActionListener);
         }
 
-        // Label on the left
-        titleLabel = new JLabel(APP_TITLE);
-        titleLabel.setFont(titleLabel.getFont().deriveFont(titleLabel.getFont().getSize2D() + 2f));
-        buttonPanel.add(titleLabel, BorderLayout.WEST);
-
-        // Both buttons on the right in a flow panel
-        JPanel rightButtonPanel = new JPanel(new FlowLayout(FlowLayout.TRAILING, 4, 0));
-        rightButtonPanel.add(buttonNewCollection);
-        rightButtonPanel.add(buttonImportCollection);
-        buttonPanel.add(rightButtonPanel, BorderLayout.EAST);
-        
-        // Add button panel at the top
-        panel.add(buttonPanel, BorderLayout.NORTH);
+        panel.add(topPanel, BorderLayout.NORTH);
 
         // Use the provided JTree and add a selection listener
         jTree.addTreeSelectionListener(selectionListener);
@@ -98,8 +93,9 @@ public class LeftPanel {
         environmentsPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         environmentsPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 
-        // Tabbed pane: Collections and Environments
+        // Tabbed pane: Collections and Environments (fills width and resizes with splitter)
         JTabbedPane tabbedPane = new JTabbedPane();
+        tabbedPane.setMinimumSize(new Dimension(0, 0));
         tabbedPane.addTab("Collections", collectionsPane);
         tabbedPane.addTab("Environments", environmentsPane);
         tabbedPane.setTabComponentAt(0, createTabHeader("Collections", true, addCollectionTabActionListener));
@@ -161,13 +157,13 @@ public class LeftPanel {
         }
 
         if (environmentName == null || environmentName.trim().isEmpty()) {
-            titleLabel.setText(APP_TITLE);
+            titleLabel.setText(APP_TITLE + " - Env: <none>");
             titleLabel.setToolTipText("No active environment");
             return;
         }
 
         String trimmedName = environmentName.trim();
-        titleLabel.setText(APP_TITLE + " - Env: " + abbreviate(trimmedName, 24));
+        titleLabel.setText(APP_TITLE + " - Env: " + abbreviate(trimmedName, 20));
         titleLabel.setToolTipText("Active environment: " + trimmedName);
     }
 
