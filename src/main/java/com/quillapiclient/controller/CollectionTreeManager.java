@@ -3,8 +3,10 @@ package com.quillapiclient.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quillapiclient.db.CollectionDao;
 import com.quillapiclient.objects.PostmanCollection;
+import com.quillapiclient.objects.Request;
 
 import javax.swing.*;
+import javax.swing.event.TreeSelectionEvent;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellEditor;
 import javax.swing.tree.DefaultTreeCellRenderer;
@@ -12,22 +14,88 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import java.awt.Component;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 public class CollectionTreeManager {
     private JTree tree;
     private int currentCollectionId = -1;
     private static final ObjectMapper objectMapper = new ObjectMapper();
+    private final List<Consumer<TreeSelectionEvent>> treeSelectionHandlers;
+    private final List<IntConsumer> requestItemIdListeners;
+    private final List<Consumer<Request>> requestSelectionListeners;
     
     public CollectionTreeManager() {
+        treeSelectionHandlers = new ArrayList<>();
+        requestItemIdListeners = new ArrayList<>();
+        requestSelectionListeners = new ArrayList<>();
+
         DefaultMutableTreeNode emptyRoot = new DefaultMutableTreeNode("Collections");
         tree = new JTree(createTreeModel(emptyRoot));
         // Set custom renderer to display methods with colors
         tree.setCellRenderer(new com.quillapiclient.components.MethodTreeCellRenderer());
         setupInlineEditingSupport();
+        tree.addTreeSelectionListener(this::handleTreeSelectionChanged);
 
         // Add right-click context menu
         new CollectionTreeContextMenu(tree, this::handleAddRequest, this::handleAddFolder,
                 this::handleDeleteItem, this::handleRenameItem);
+    }
+
+    public void addTreeSelectionHandler(Consumer<TreeSelectionEvent> handler) {
+        if (handler == null) {
+            return;
+        }
+        treeSelectionHandlers.add(handler);
+    }
+
+    public void addRequestItemIdSelectionListener(IntConsumer listener) {
+        if (listener == null) {
+            return;
+        }
+        requestItemIdListeners.add(listener);
+    }
+
+    public void addRequestSelectionListener(Consumer<Request> listener) {
+        if (listener == null) {
+            return;
+        }
+        requestSelectionListeners.add(listener);
+    }
+
+    private void handleTreeSelectionChanged(TreeSelectionEvent event) {
+        for (Consumer<TreeSelectionEvent> handler : new ArrayList<>(treeSelectionHandlers)) {
+            handler.accept(event);
+        }
+
+        Object selectedPath = tree.getLastSelectedPathComponent();
+        if (!(selectedPath instanceof DefaultMutableTreeNode selectedNode)) {
+            return;
+        }
+
+        Object userObject = selectedNode.getUserObject();
+        if (!(userObject instanceof TreeNodeData nodeData)) {
+            return;
+        }
+
+        if (!"request".equals(nodeData.itemType)) {
+            return;
+        }
+
+        for (IntConsumer listener : new ArrayList<>(requestItemIdListeners)) {
+            listener.accept(nodeData.itemId);
+        }
+
+        Request selectedRequest = CollectionDao.getRequestByItemId(nodeData.itemId);
+        if (selectedRequest == null) {
+            return;
+        }
+
+        for (Consumer<Request> listener : new ArrayList<>(requestSelectionListeners)) {
+            listener.accept(selectedRequest);
+        }
     }
 
     /**

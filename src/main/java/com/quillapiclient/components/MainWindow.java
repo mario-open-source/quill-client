@@ -1,10 +1,7 @@
 package com.quillapiclient.components;
 
-import com.quillapiclient.utility.TableEditUtil;
-
 import javax.swing.JComponent;
 import javax.swing.JFrame;
-import javax.swing.JTable;
 import javax.swing.JSplitPane;
 
 public class MainWindow {
@@ -23,10 +20,6 @@ public class MainWindow {
     }
 
     public void setLayout(LeftPanel leftPanel, RequestPanel mainPanel, JComponent responsePanel) {
-        JTable headersTable = mainPanel.getHeadersPanel().getTable();
-        leftPanel.getTree().addTreeSelectionListener(e -> {
-            TableEditUtil.commitOrCancelTableEdit(headersTable);  // and any other tables
-        });
         verticalSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, mainPanel.getPanel(), responsePanel);
         verticalSplitPane.setDividerLocation(750);
         verticalSplitPane.setContinuousLayout(true);

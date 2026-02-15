@@ -8,13 +8,13 @@ import com.quillapiclient.components.RequestPanel;
 import com.quillapiclient.components.LeftPanel;
 import com.quillapiclient.components.ResponsePanel;
 import com.quillapiclient.components.EnvironmentVariablesWindow;
-import com.quillapiclient.utility.FileSelectionListener;
 import com.quillapiclient.utility.OpenFileAction;
 import com.quillapiclient.objects.Request;
 import com.quillapiclient.db.CollectionDao;
 import com.quillapiclient.db.EnvironmentDao;
 import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.utility.ResponseFormatter;
+import com.quillapiclient.utility.TableEditUtil;
 
 import javax.swing.JOptionPane;
 import javax.swing.JPopupMenu;
@@ -56,17 +56,10 @@ public class Views {
     }
     
     private void setupComponents() {
-        // Setup left panel with tree
-        FileSelectionListener.RequestSelectionCallback requestCallback = 
-            this::handleRequestSelection;
-        
-        FileSelectionListener fileSelectionListener = new FileSelectionListener(
-            collectionManager.getTree(), 
-            requestCallback
-        );
-        
-        // Also track the item ID when a request is selected
-        fileSelectionListener.setItemIdCallback(this::setCurrentItemId);
+        collectionManager.addTreeSelectionHandler(event ->
+            TableEditUtil.commitOrCancelTableEdit(requestPanel.getHeadersPanel().getTable()));
+        collectionManager.addRequestItemIdSelectionListener(this::setCurrentItemId);
+        collectionManager.addRequestSelectionListener(this::handleRequestSelection);
         
         OpenFileAction.FileChooserCallback importCallback = this::handleImportFile;
         
@@ -75,7 +68,6 @@ public class Views {
         leftPanelComponent = new LeftPanel(
             collectionManager.getTree(), 
             environmentManager.getList(),
-            fileSelectionListener, 
             importAction, 
             e -> System.out.println("New collection button clicked"),
             e -> collectionManager.createCollectionAndStartEditing(),

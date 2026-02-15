@@ -14,7 +14,6 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTree;
-import javax.swing.event.TreeSelectionListener;
 
 public class LeftPanel {
     private JPanel panel;
@@ -29,16 +28,16 @@ public class LeftPanel {
     private final String IMPORT_TEXT = "Import";
     private final String NEW_TEXT = "New";
     private final String ADD_TEXT = "+";
-    public LeftPanel(JTree jTree, JList<String> environmentList, TreeSelectionListener selectionListener,
+    public LeftPanel(JTree jTree, JList<String> environmentList,
                      ActionListener importActionListener, ActionListener newActionListener,
                      ActionListener addCollectionTabActionListener, ActionListener addEnvironmentTabActionListener) {
         this.jTree = jTree;
         this.environmentList = environmentList;
-        this.panel = createPanelWithTree(jTree, environmentList, selectionListener, importActionListener,
+        this.panel = createPanelWithTree(jTree, environmentList, importActionListener,
             newActionListener, addCollectionTabActionListener, addEnvironmentTabActionListener);
     }
     
-    private JPanel createPanelWithTree(JTree jTree, JList<String> environmentList, TreeSelectionListener selectionListener,
+    private JPanel createPanelWithTree(JTree jTree, JList<String> environmentList,
                                        ActionListener importActionListener, ActionListener newActionListener,
                                        ActionListener addCollectionTabActionListener,
                                        ActionListener addEnvironmentTabActionListener) {
@@ -79,9 +78,6 @@ public class LeftPanel {
         }
 
         panel.add(topPanel, BorderLayout.NORTH);
-
-        // Use the provided JTree and add a selection listener
-        jTree.addTreeSelectionListener(selectionListener);
 
         // Wrap the tree in a scroll pane for the Collections tab
         JScrollPane collectionsPane = new JScrollPane(jTree);
