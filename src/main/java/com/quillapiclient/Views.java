@@ -78,7 +78,6 @@ public class Views {
             collectionManager.getTree(),
             environmentManager.getList(),
             importAction,
-            e -> System.out.println("New collection button clicked"),
             e -> collectionManager.createCollectionAndStartEditing(),
             e -> environmentManager.createEnvironmentAndStartEditing()
         );
