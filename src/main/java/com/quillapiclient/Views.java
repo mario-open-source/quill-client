@@ -5,6 +5,7 @@ import com.quillapiclient.components.LeftPanel;
 import com.quillapiclient.components.MainWindow;
 import com.quillapiclient.components.RequestPanel;
 import com.quillapiclient.components.ResponsePanel;
+import com.quillapiclient.components.ScriptsPanel;
 import com.quillapiclient.controller.ApiController;
 import com.quillapiclient.controller.CollectionTreeManager;
 import com.quillapiclient.controller.EnvironmentListManager;
@@ -218,6 +219,10 @@ public class Views {
                 currentItemId,
                 request.getMethod()
             );
+
+            // Save scripts (item-level if set, otherwise delete item-level so collection-level shows)
+            saveScriptsForCurrentItem();
+
             // Clear unsaved changes and reload from database
             requestPanel.clearUnsavedChanges();
             Request updatedRequest = CollectionDao.getRequestByItemId(
@@ -258,7 +263,8 @@ public class Views {
             token,
             paramsText,
             currentItemId,
-            environmentManager.getActiveEnvironmentVariables()
+            environmentManager.getActiveEnvironmentVariables(),
+            environmentManager.getActiveEnvironmentId()
         );
     }
 
@@ -272,6 +278,34 @@ public class Views {
                 environmentManager.getActiveEnvironmentName()
             );
         }
+    }
+
+    private void saveScriptsForCurrentItem() {
+        if (currentItemId <= 0) return;
+
+        int collectionId = CollectionDao.getCollectionIdByItemId(currentItemId);
+        if (collectionId <= 0) return;
+
+        ScriptsPanel scriptsPanel = requestPanel.getScriptsPanel();
+        if (scriptsPanel == null) return;
+
+        String preScript = scriptsPanel.getPreRequestScript();
+        String testScript = scriptsPanel.getTestScript();
+
+        // Always save at item level — empty string means "no item-level script"
+        // (collection-level scripts will still be used as fallback)
+        CollectionDao.saveScript(
+            collectionId,
+            currentItemId,
+            "prerequest",
+            preScript != null && !preScript.isBlank() ? preScript : null
+        );
+        CollectionDao.saveScript(
+            collectionId,
+            currentItemId,
+            "test",
+            testScript != null && !testScript.isBlank() ? testScript : null
+        );
     }
 
     private void setupEnvironmentContextMenu() {

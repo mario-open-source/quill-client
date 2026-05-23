@@ -200,6 +200,11 @@ public class CollectionDao {
             saveVariables(conn, collectionId, itemId, item.getVariable());
         }
 
+        // Save item-level events (pre-request / test scripts)
+        if (item.getEvent() != null) {
+            saveEvents(conn, collectionId, itemId, item.getEvent());
+        }
+
         // If it's a request, save request details
         if (item.getRequest() != null) {
             saveRequest(conn, itemId, item.getRequest());
@@ -473,12 +478,11 @@ public class CollectionDao {
                         "VALUES (?, ?, ?, ?, ?, ?)"
                 )
             ) {
-                if (collectionId != null) {
-                    stmt.setInt(1, collectionId);
-                    stmt.setNull(2, Types.INTEGER);
-                } else {
-                    stmt.setNull(1, Types.INTEGER);
+                stmt.setInt(1, collectionId);
+                if (itemId != null) {
                     stmt.setInt(2, itemId);
+                } else {
+                    stmt.setNull(2, Types.INTEGER);
                 }
                 stmt.setString(3, eventType);
                 stmt.setString(4, scriptType);
@@ -2163,5 +2167,99 @@ public class CollectionDao {
             e.printStackTrace();
             return false;
         }
+    }
+
+    // -----------------------------------------------------------
+    //  Pre-request / Post-response script persistence
+    // -----------------------------------------------------------
+
+    /**
+     * Upserts a script row into the events table.
+     *
+     * @param collectionId  collection scope (always required)
+     * @param itemId        item scope, or null for collection-level
+     * @param eventType     'prerequest' or 'test'
+     * @param scriptBody    JavaScript source
+     */
+    public static void saveScript(
+        int collectionId,
+        Integer itemId,
+        String eventType,
+        String scriptBody
+    ) {
+        Connection conn = LiteConnection.getConnection();
+        try {
+            conn.setAutoCommit(false);
+
+            // Delete existing row for this scope + type
+            String delSql =
+                itemId == null
+                    ? "DELETE FROM events WHERE collection_id = ? AND item_id IS NULL AND event_type = ?"
+                    : "DELETE FROM events WHERE collection_id = ? AND item_id = ? AND event_type = ?";
+            try (PreparedStatement del = conn.prepareStatement(delSql)) {
+                del.setInt(1, collectionId);
+                if (itemId != null) del.setInt(2, itemId);
+                del.setString(itemId == null ? 2 : 3, eventType);
+                del.executeUpdate();
+            }
+
+            // Insert new row if script is non-empty
+            if (scriptBody != null && !scriptBody.isBlank()) {
+                String insSql =
+                    itemId == null
+                        ? "INSERT INTO events (collection_id, item_id, event_type, script_exec) VALUES (?, NULL, ?, ?)"
+                        : "INSERT INTO events (collection_id, item_id, event_type, script_exec) VALUES (?, ?, ?, ?)";
+                try (PreparedStatement ins = conn.prepareStatement(insSql)) {
+                    ins.setInt(1, collectionId);
+                    if (itemId != null) ins.setInt(2, itemId);
+                    ins.setString(itemId == null ? 2 : 3, eventType);
+                    ins.setString(itemId == null ? 3 : 4, scriptBody);
+                    ins.executeUpdate();
+                }
+            }
+
+            conn.commit();
+        } catch (SQLException e) {
+            try {
+                conn.rollback();
+            } catch (SQLException ignored) {}
+            System.err.println("saveScript error: " + e.getMessage());
+        } finally {
+            try {
+                conn.setAutoCommit(true);
+            } catch (SQLException ignored) {}
+        }
+    }
+
+    /**
+     * Loads a script from the events table.
+     *
+     * @param collectionId  collection scope
+     * @param itemId        item scope, or null for collection-level
+     * @param eventType     'prerequest' or 'test'
+     * @return script body, or null if not found
+     */
+    public static String loadScript(
+        int collectionId,
+        Integer itemId,
+        String eventType
+    ) {
+        Connection conn = LiteConnection.getConnection();
+        String sql =
+            itemId == null
+                ? "SELECT script_exec FROM events WHERE collection_id = ? AND item_id IS NULL AND event_type = ? LIMIT 1"
+                : "SELECT script_exec FROM events WHERE collection_id = ? AND item_id = ? AND event_type = ? LIMIT 1";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, collectionId);
+            if (itemId != null) stmt.setInt(2, itemId);
+            stmt.setString(itemId == null ? 2 : 3, eventType);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getString("script_exec");
+            }
+        } catch (SQLException e) {
+            System.err.println("loadScript error: " + e.getMessage());
+        }
+        return null;
     }
 }

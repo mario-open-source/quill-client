@@ -1,16 +1,15 @@
 package com.quillapiclient.components;
 
 import com.quillapiclient.objects.*;
-
+import java.awt.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import javax.swing.*;
-import java.awt.*;
 
 public class RequestPanel {
+
     private JPanel panel;
     private TopPanel topPanel;
     private JComboBox<String> methodDropdown;
@@ -31,9 +30,9 @@ public class RequestPanel {
     private final String AUTHORIZATION_LABEL = "Authorization";
     private final String HEADERS_LABEL = "Headers";
     private final String PARAMS_LABEL = "Params";
-    //Will see about implementing these later
-    //private final String SCRIPTS_LABEL = "Scripts";
-    //private final String SETTINGS_LABEL = "Settings";
+    private final String SCRIPTS_LABEL = "Scripts";
+
+    private ScriptsPanel scriptsPanel;
 
     public RequestPanel() {
         panel = new JPanel(new BorderLayout());
@@ -63,14 +62,15 @@ public class RequestPanel {
      */
     private void setupChangeListeners() {
         // Create a simple key listener that enables the save button and stores changes (only if not populating)
-        java.awt.event.KeyListener enableSaveListener = new java.awt.event.KeyAdapter() {
-            @Override
-            public void keyPressed(java.awt.event.KeyEvent e) {
-                if (!isPopulating) {
-                    saveCurrentStateToMemory();
+        java.awt.event.KeyListener enableSaveListener =
+            new java.awt.event.KeyAdapter() {
+                @Override
+                public void keyPressed(java.awt.event.KeyEvent e) {
+                    if (!isPopulating) {
+                        saveCurrentStateToMemory();
+                    }
                 }
-            }
-        };
+            };
 
         // URL field
         topPanel.getUrlField().addKeyListener(enableSaveListener);
@@ -87,13 +87,11 @@ public class RequestPanel {
         // Headers table - use TableModelListener to catch all edits (including double-click edits)
         headersPanel.getTableModel().addTableModelListener(e -> {
             if (!isPopulating) {
-
                 try {
                     saveCurrentStateToMemory();
                 } catch (Exception ex) {
                     System.out.println(ex.getMessage());
                 }
-
             }
         });
         headersPanel.getTable().addKeyListener(enableSaveListener);
@@ -115,6 +113,12 @@ public class RequestPanel {
                 saveCurrentStateToMemory();
             }
         });
+
+        // Script text areas
+        if (scriptsPanel != null) {
+            scriptsPanel.getPreRequestArea().addKeyListener(enableSaveListener);
+            scriptsPanel.getTestArea().addKeyListener(enableSaveListener);
+        }
     }
 
     /**
@@ -135,12 +139,17 @@ public class RequestPanel {
         headersPanel = new HeadersPanel();
 
         paramsTextArea = new JTextArea();
-        paramsTextArea.setToolTipText("Enter query parameters in format: key=value&key2=value2 or key: value (one per line)");
+        paramsTextArea.setToolTipText(
+            "Enter query parameters in format: key=value&key2=value2 or key: value (one per line)"
+        );
 
         tabs.addTab(BODY_LABEL, new JScrollPane(bodyTextArea));
         tabs.addTab(AUTHORIZATION_LABEL, authPanel.getPanel());
         tabs.addTab(HEADERS_LABEL, headersPanel.getScrollPane());
         tabs.addTab(PARAMS_LABEL, paramsPanel.getScrollPane());
+
+        scriptsPanel = new ScriptsPanel();
+        tabs.addTab(SCRIPTS_LABEL, scriptsPanel.getPanel());
 
         return tabs;
     }
@@ -163,7 +172,10 @@ public class RequestPanel {
         Request requestToLoad = unsavedChanges.getOrDefault(itemId, request);
 
         // Populate URL (using placeholder-aware method) - use requestToLoad, not request
-        if (requestToLoad.getUrl() != null && requestToLoad.getUrl().getRaw() != null) {
+        if (
+            requestToLoad.getUrl() != null &&
+            requestToLoad.getUrl().getRaw() != null
+        ) {
             topPanel.setUrlText(requestToLoad.getUrl().getRaw());
         } else {
             topPanel.setUrlText("");
@@ -175,22 +187,29 @@ public class RequestPanel {
         }
 
         // Populate body
-        if (requestToLoad.getBody() != null && requestToLoad.getBody().getRaw() != null) {
+        if (
+            requestToLoad.getBody() != null &&
+            requestToLoad.getBody().getRaw() != null
+        ) {
             bodyTextArea.setText(requestToLoad.getBody().getRaw());
         } else {
             bodyTextArea.setText("");
         }
 
         // Populate headers if available
-        if (requestToLoad.getHeader() != null && !requestToLoad.getHeader().isEmpty()) {
+        if (
+            requestToLoad.getHeader() != null &&
+            !requestToLoad.getHeader().isEmpty()
+        ) {
             StringBuilder headersBuilder = new StringBuilder();
             for (Header header : requestToLoad.getHeader()) {
                 // Assuming header format is [key, value, description]
                 if (header.getKey() != null && header.getValue() != null) {
-                    headersBuilder.append(header.getKey())
-                            .append(": ")
-                            .append(header.getValue())
-                            .append("\n");
+                    headersBuilder
+                        .append(header.getKey())
+                        .append(": ")
+                        .append(header.getValue())
+                        .append("\n");
                 }
             }
             headersTextArea = headersBuilder.toString();
@@ -199,15 +218,21 @@ public class RequestPanel {
         }
 
         // Populate query parameters if available
-        if (requestToLoad.getUrl() != null && requestToLoad.getUrl().getQuery() != null) {
+        if (
+            requestToLoad.getUrl() != null &&
+            requestToLoad.getUrl().getQuery() != null
+        ) {
             StringBuilder paramsBuilder = new StringBuilder();
             for (Query queryParam : requestToLoad.getUrl().getQuery()) {
                 // Assuming query param format is [key, value, description]
-                if (queryParam.getKey() != null && queryParam.getValue() != null) {
-                    paramsBuilder.append(queryParam.getKey())
-                            .append("=")
-                            .append(queryParam.getValue())
-                            .append("\n");
+                if (
+                    queryParam.getKey() != null && queryParam.getValue() != null
+                ) {
+                    paramsBuilder
+                        .append(queryParam.getKey())
+                        .append("=")
+                        .append(queryParam.getValue())
+                        .append("\n");
                 }
             }
             paramsTextArea.setText(paramsBuilder.toString());
@@ -220,10 +245,49 @@ public class RequestPanel {
         headersPanel.populateFromRequest(requestToLoad);
         paramsPanel.populateFromRequest(requestToLoad);
 
+        // Populate scripts from DB (item-level first, then collection-level fallback)
+        populateScripts(itemId);
+
         // Reset flag after population is complete
         isPopulating = false;
     }
 
+    private void populateScripts(int itemId) {
+        if (itemId <= 0 || scriptsPanel == null) return;
+
+        int collectionId =
+            com.quillapiclient.db.CollectionDao.getCollectionIdByItemId(itemId);
+        if (collectionId <= 0) return;
+
+        // Try item-level scripts first, fall back to collection-level
+        String preScript = com.quillapiclient.db.CollectionDao.loadScript(
+            collectionId,
+            itemId,
+            "prerequest"
+        );
+        if (preScript == null) {
+            preScript = com.quillapiclient.db.CollectionDao.loadScript(
+                collectionId,
+                null,
+                "prerequest"
+            );
+        }
+        String testScript = com.quillapiclient.db.CollectionDao.loadScript(
+            collectionId,
+            itemId,
+            "test"
+        );
+        if (testScript == null) {
+            testScript = com.quillapiclient.db.CollectionDao.loadScript(
+                collectionId,
+                null,
+                "test"
+            );
+        }
+
+        scriptsPanel.setPreRequestScript(preScript);
+        scriptsPanel.setTestScript(testScript);
+    }
 
     /**
      * Clears unsaved changes for the current item (called after successful save)
@@ -234,7 +298,7 @@ public class RequestPanel {
         }
     }
 
-    public HeadersPanel getHeadersPanel(){
+    public HeadersPanel getHeadersPanel() {
         return headersPanel;
     }
 
@@ -273,6 +337,10 @@ public class RequestPanel {
 
     public JPanel getPanel() {
         return panel;
+    }
+
+    public ScriptsPanel getScriptsPanel() {
+        return scriptsPanel;
     }
 
     /**
@@ -340,7 +408,9 @@ public class RequestPanel {
             basic.add(passwordCred);
 
             auth.setBasic(basic);
-        } else if (authType.equals("Bearer token") || authType.equals("Jwt bearer")) {
+        } else if (
+            authType.equals("Bearer token") || authType.equals("Jwt bearer")
+        ) {
             List<Credential> bearer = new ArrayList<>();
             Credential tokenCred = new Credential();
             tokenCred.setKey("token");

@@ -1,12 +1,11 @@
 package com.quillapiclient.controller;
 
-import com.quillapiclient.server.ApiCallBuilder;
-import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.components.ResponsePanel;
 import com.quillapiclient.db.CollectionDao;
+import com.quillapiclient.scripting.ScriptOrchestrator;
+import com.quillapiclient.server.ApiCallBuilder;
+import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.utility.ResponseFormatter;
-
-import javax.swing.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -14,21 +13,37 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import javax.swing.*;
 
 public class ApiController {
+
     private ResponsePanel responsePanel;
-    private static final int NUMBER_OF_THREADS = 5;
-    private static final ExecutorService executorService = 
+    private static final int NUMBER_OF_THREADS = 1;
+    private static final ExecutorService executorService =
         Executors.newFixedThreadPool(NUMBER_OF_THREADS);
-    
+
     public ApiController(ResponsePanel responsePanel) {
         this.responsePanel = responsePanel;
     }
-    
-    public void executeApiCall(String url, String method, String headersText, 
-                              String bodyText, String authType, String username, 
-                              String password, String token, String paramsText, int itemId,
-                              Map<String, String> runtimeVariables) {
+
+    /**
+     * Script-aware execution: runs pre-request script, executes HTTP call,
+     * then runs post-response script. Accepts environment ID for variable resolution.
+     */
+    public void executeApiCall(
+        String url,
+        String method,
+        String headersText,
+        String bodyText,
+        String authType,
+        String username,
+        String password,
+        String token,
+        String paramsText,
+        int itemId,
+        Map<String, String> runtimeVariables,
+        int environmentId
+    ) {
         if (url.isEmpty()) {
             responsePanel.setResponse(ResponseFormatter.ERROR_URL_EMPTY);
             responsePanel.resetStatusDurationSize();
@@ -36,21 +51,135 @@ public class ApiController {
         }
 
         Map<String, String> requestVariables = (runtimeVariables != null)
-                ? new HashMap<>(runtimeVariables)
-                : new HashMap<>();
-        
+            ? new HashMap<>(runtimeVariables)
+            : new HashMap<>();
+
         // Show loading message
-        String loadingMessage = createLoadingMessage(url, method, headersText, bodyText, authType);
+        String loadingMessage = createLoadingMessage(
+            url,
+            method,
+            headersText,
+            bodyText,
+            authType
+        );
+        responsePanel.setResponse(loadingMessage);
+        responsePanel.resetStatusDurationSize();
+
+        // Resolve collection ID
+        int collectionId =
+            itemId > 0 ? CollectionDao.getCollectionIdByItemId(itemId) : -1;
+
+        // Build script orchestrator (loads pre/post scripts + variable scopes)
+        ScriptOrchestrator orchestrator = new ScriptOrchestrator(
+            collectionId,
+            itemId > 0 ? itemId : null,
+            environmentId
+        );
+
+        // Phase 1: run pre-request script (on the calling thread — it's tiny)
+        orchestrator.runPreRequest();
+
+        // Submit the API call to the executor service
+        executorService.submit(() -> {
+            long startTime = System.currentTimeMillis();
+
+            // Phase 2: snapshot variables NOW (inside executor, after any pending scripts)
+            Map<String, String> mergedVars = orchestrator.getMergedVariables();
+            if (requestVariables != null && !requestVariables.isEmpty()) {
+                requestVariables.putAll(mergedVars);
+                mergedVars = requestVariables;
+            }
+
+            System.out.println(
+                "[ApiController] mergedVars keys: " + mergedVars.keySet()
+            );
+
+            try {
+                ApiResponse response = ApiCallBuilder.fromUI(
+                    url,
+                    method,
+                    headersText,
+                    bodyText,
+                    authType,
+                    username,
+                    password,
+                    token,
+                    paramsText,
+                    -1, // don't reload DB vars — use only mergedVars
+                    mergedVars
+                ).execute();
+
+                long duration = System.currentTimeMillis() - startTime;
+                response.setDuration(duration);
+
+                // Save response to database
+                if (itemId > 0) {
+                    int requestId = CollectionDao.getRequestIdByItemId(itemId);
+                    if (requestId > 0) {
+                        CollectionDao.saveResponse(response, requestId);
+                    }
+                }
+
+                // Phase 3: run post-response script
+                orchestrator.runPostResponse(response);
+
+                SwingUtilities.invokeLater(() -> displayResponse(response));
+            } catch (Exception e) {
+                SwingUtilities.invokeLater(() -> displayError(e));
+            }
+        });
+    }
+
+    public void executeApiCall(
+        String url,
+        String method,
+        String headersText,
+        String bodyText,
+        String authType,
+        String username,
+        String password,
+        String token,
+        String paramsText,
+        int itemId,
+        Map<String, String> runtimeVariables
+    ) {
+        if (url.isEmpty()) {
+            responsePanel.setResponse(ResponseFormatter.ERROR_URL_EMPTY);
+            responsePanel.resetStatusDurationSize();
+            return;
+        }
+
+        Map<String, String> requestVariables = (runtimeVariables != null)
+            ? new HashMap<>(runtimeVariables)
+            : new HashMap<>();
+
+        // Show loading message
+        String loadingMessage = createLoadingMessage(
+            url,
+            method,
+            headersText,
+            bodyText,
+            authType
+        );
         responsePanel.setResponse(loadingMessage);
         responsePanel.resetStatusDurationSize(); // Reset while loading
-        
+
         // Submit the API call to the executor service
         executorService.submit(() -> {
             long startTime = System.currentTimeMillis();
             try {
                 ApiResponse response = ApiCallBuilder.fromUI(
-                    url, method, headersText, bodyText, authType,
-                    username, password, token, paramsText, itemId, requestVariables
+                    url,
+                    method,
+                    headersText,
+                    bodyText,
+                    authType,
+                    username,
+                    password,
+                    token,
+                    paramsText,
+                    itemId,
+                    requestVariables
                 ).execute();
 
                 // Calculate duration and set it on the response
@@ -65,58 +194,67 @@ public class ApiController {
                     }
                 }
 
-                SwingUtilities.invokeLater(() ->
-                    displayResponse(response)
-                );
-                
+                SwingUtilities.invokeLater(() -> displayResponse(response));
             } catch (Exception e) {
-                SwingUtilities.invokeLater(() ->
-                    displayError(e)
-                );
+                SwingUtilities.invokeLater(() -> displayError(e));
             }
         });
     }
-    
-    private String createLoadingMessage(String url, String method, String headersText, 
-                                       String bodyText, String authType) {
+
+    private String createLoadingMessage(
+        String url,
+        String method,
+        String headersText,
+        String bodyText,
+        String authType
+    ) {
         StringBuilder sb = new StringBuilder();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(ResponseFormatter.TIMESTAMP_FORMAT);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(
+            ResponseFormatter.TIMESTAMP_FORMAT
+        );
         String timestamp = LocalDateTime.now().format(formatter);
-        
+
         sb.append("[").append(timestamp).append("] Sending request...\n");
         sb.append(ResponseFormatter.SEPARATOR_LONG).append("\n");
         sb.append("URL: ").append(url).append("\n");
         sb.append("Method: ").append(method).append("\n");
         sb.append("Auth: ").append(authType).append("\n");
-        
+
         if (headersText != null && !headersText.trim().isEmpty()) {
-            sb.append("Headers: ").append(headersText.split("\n").length)
-              .append(" header(s) configured\n");
+            sb.append("Headers: ")
+                .append(headersText.split("\n").length)
+                .append(" header(s) configured\n");
         }
-        
+
         if (bodyText != null && !bodyText.trim().isEmpty()) {
-            sb.append("Body: ").append(bodyText.length())
-              .append(" character(s)\n");
+            sb.append("Body: ")
+                .append(bodyText.length())
+                .append(" character(s)\n");
         }
-        
+
         sb.append(ResponseFormatter.SEPARATOR_LONG).append("\n");
         sb.append("Waiting for response...\n");
-        
+
         return sb.toString();
     }
-    
+
     private void displayResponse(ApiResponse response) {
         // Use the unified ResponseFormatter utility
-        String formattedResponse = ResponseFormatter.formatResponse(response, "Response received");
-        
+        String formattedResponse = ResponseFormatter.formatResponse(
+            response,
+            "Response received"
+        );
+
         // Update the response panel
         responsePanel.setResponse(formattedResponse);
-        
+
         // Update status and duration labels
         responsePanel.setStatus(response.getStatusCode());
         responsePanel.setDuration(response.getDuration());
-        responsePanel.setSize(ResponseFormatter.formatSize(response.getBody().length()));
-        
+        responsePanel.setSize(
+            ResponseFormatter.formatSize(response.getBody().length())
+        );
+
         // If there's an error status, show it more prominently
         if (!response.isSuccess()) {
             responsePanel.setErrorState(true);
@@ -124,28 +262,33 @@ public class ApiController {
             responsePanel.setErrorState(false);
         }
     }
-    
+
     private void displayError(Exception e) {
         // Use the unified ErrorFormatter utility
         String formattedError = ResponseFormatter.formatException(e);
-        
+
         // Update the response panel
         responsePanel.setResponse(formattedError);
         responsePanel.setErrorState(true);
         responsePanel.resetStatusDurationSize(); // Reset on error (no valid response)
     }
-    
+
     /**
      * Shuts down the executor service gracefully.
      * Waits for running tasks to complete, then terminates.
-     * 
+     *
      * @param timeoutSeconds Maximum time to wait for tasks to complete
      * @return true if shutdown completed, false if timeout occurred
      */
     public static boolean shutdownGracefully(long timeoutSeconds) {
         executorService.shutdown();
         try {
-            if (!executorService.awaitTermination(timeoutSeconds, TimeUnit.SECONDS)) {
+            if (
+                !executorService.awaitTermination(
+                    timeoutSeconds,
+                    TimeUnit.SECONDS
+                )
+            ) {
                 // Timeout occurred, force shutdown
                 executorService.shutdownNow();
                 // Wait a bit more for forced shutdown
@@ -162,26 +305,26 @@ public class ApiController {
             return false;
         }
     }
-    
+
     /**
      * Shuts down the executor service gracefully with default timeout (10 seconds).
-     * 
+     *
      * @return true if shutdown completed, false if timeout occurred
      */
     public static boolean shutdownGracefully() {
         return shutdownGracefully(10);
     }
-    
+
     /**
      * Immediately shuts down the executor service.
      * Attempts to stop all actively executing tasks and halts processing.
-     * 
+     *
      * @return List of tasks that were awaiting execution
      */
     public static java.util.List<Runnable> shutdownNow() {
         return executorService.shutdownNow();
     }
-    
+
     /**
      * Initiates shutdown but does not wait for completion.
      * Use shutdownGracefully() for proper shutdown.
@@ -189,5 +332,4 @@ public class ApiController {
     public static void shutdown() {
         executorService.shutdown();
     }
-    
 }
