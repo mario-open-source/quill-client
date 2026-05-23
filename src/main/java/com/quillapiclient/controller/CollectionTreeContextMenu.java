@@ -1,19 +1,21 @@
 package com.quillapiclient.controller;
 
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 
 public class CollectionTreeContextMenu {
+
     private final JTree tree;
     private final AddRequestHandler addRequestHandler;
     private final AddFolderHandler addFolderHandler;
     private final DeleteHandler deleteHandler;
     private final RenameHandler renameHandler;
+    private final ExportHandler exportHandler;
     private final JPopupMenu popupMenu;
     private Integer contextCollectionId;
     private Integer contextParentId;
@@ -24,14 +26,22 @@ public class CollectionTreeContextMenu {
     private JMenuItem addFolderItem;
     private JMenuItem renameItem;
     private JMenuItem deleteItem;
+    private JMenuItem exportItem;
 
-    public CollectionTreeContextMenu(JTree tree, AddRequestHandler addRequestHandler, AddFolderHandler addFolderHandler,
-                                     DeleteHandler deleteHandler, RenameHandler renameHandler) {
+    public CollectionTreeContextMenu(
+        JTree tree,
+        AddRequestHandler addRequestHandler,
+        AddFolderHandler addFolderHandler,
+        DeleteHandler deleteHandler,
+        RenameHandler renameHandler,
+        ExportHandler exportHandler
+    ) {
         this.tree = tree;
         this.addRequestHandler = addRequestHandler;
         this.addFolderHandler = addFolderHandler;
         this.deleteHandler = deleteHandler;
         this.renameHandler = renameHandler;
+        this.exportHandler = exportHandler;
         this.popupMenu = new JPopupMenu();
         setupContextMenu();
     }
@@ -40,51 +50,88 @@ public class CollectionTreeContextMenu {
         addRequestItem = new JMenuItem("Add Request");
         addRequestItem.addActionListener(event -> {
             if (contextCollectionId != null) {
-                addRequestHandler.onAddRequest(contextCollectionId, contextParentId);
+                addRequestHandler.onAddRequest(
+                    contextCollectionId,
+                    contextParentId
+                );
             }
         });
 
         addFolderItem = new JMenuItem("Add Folder");
         addFolderItem.addActionListener(event -> {
             if (contextCollectionId != null) {
-                addFolderHandler.onAddFolder(contextCollectionId, contextParentId);
+                addFolderHandler.onAddFolder(
+                    contextCollectionId,
+                    contextParentId
+                );
             }
         });
 
         renameItem = new JMenuItem("Rename");
         renameItem.addActionListener(event -> {
-            if (contextCollectionId != null && contextItemType != null && contextItemId != null && contextNode != null) {
-                renameHandler.onRename(contextItemType, contextCollectionId, contextItemId, contextNode);
+            if (
+                contextCollectionId != null &&
+                contextItemType != null &&
+                contextItemId != null &&
+                contextNode != null
+            ) {
+                renameHandler.onRename(
+                    contextItemType,
+                    contextCollectionId,
+                    contextItemId,
+                    contextNode
+                );
             }
         });
 
         deleteItem = new JMenuItem("Delete");
         deleteItem.addActionListener(event -> {
-            if (contextCollectionId != null && contextItemType != null && contextNode != null) {
-                deleteHandler.onDelete(contextItemType, contextCollectionId, contextItemId, contextNode);
+            if (
+                contextCollectionId != null &&
+                contextItemType != null &&
+                contextNode != null
+            ) {
+                deleteHandler.onDelete(
+                    contextItemType,
+                    contextCollectionId,
+                    contextItemId,
+                    contextNode
+                );
+            }
+        });
+
+        exportItem = new JMenuItem("Export Collection");
+        exportItem.addActionListener(event -> {
+            if (contextCollectionId != null) {
+                exportHandler.onExport(contextCollectionId);
             }
         });
 
         popupMenu.add(addRequestItem);
         popupMenu.add(addFolderItem);
+        popupMenu.addSeparator();
         popupMenu.add(renameItem);
         popupMenu.add(deleteItem);
+        popupMenu.addSeparator();
+        popupMenu.add(exportItem);
 
-        tree.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent e) {
-                if (e.isPopupTrigger()) {
-                    showPopupMenu(e);
+        tree.addMouseListener(
+            new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent e) {
+                    if (e.isPopupTrigger()) {
+                        showPopupMenu(e);
+                    }
+                }
+
+                @Override
+                public void mouseReleased(MouseEvent e) {
+                    if (e.isPopupTrigger()) {
+                        showPopupMenu(e);
+                    }
                 }
             }
-
-            @Override
-            public void mouseReleased(MouseEvent e) {
-                if (e.isPopupTrigger()) {
-                    showPopupMenu(e);
-                }
-            }
-        });
+        );
     }
 
     private void showPopupMenu(MouseEvent e) {
@@ -94,7 +141,8 @@ public class CollectionTreeContextMenu {
         }
 
         tree.setSelectionPath(path);
-        DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
+        DefaultMutableTreeNode node =
+            (DefaultMutableTreeNode) path.getLastPathComponent();
         Object userObject = node.getUserObject();
 
         boolean isFolder = false;
@@ -103,11 +151,16 @@ public class CollectionTreeContextMenu {
         String itemType = null;
         Integer itemId = null;
 
-        if (userObject instanceof CollectionTreeManager.CollectionRootData rootData) {
+        if (
+            userObject instanceof
+                CollectionTreeManager.CollectionRootData rootData
+        ) {
             collectionId = rootData.collectionId;
             isFolder = true;
             itemType = "collection";
-        } else if (userObject instanceof CollectionTreeManager.TreeNodeData nodeData) {
+        } else if (
+            userObject instanceof CollectionTreeManager.TreeNodeData nodeData
+        ) {
             if ("folder".equals(nodeData.itemType)) {
                 isFolder = true;
                 parentId = nodeData.itemId;
@@ -120,7 +173,8 @@ public class CollectionTreeContextMenu {
         }
 
         if (collectionId != null && collectionId > 0 && itemType != null) {
-            boolean isRenamable = "folder".equals(itemType) || "request".equals(itemType);
+            boolean isRenamable =
+                "folder".equals(itemType) || "request".equals(itemType);
             contextCollectionId = collectionId;
             contextParentId = parentId;
             contextItemType = itemType;
@@ -132,6 +186,7 @@ public class CollectionTreeContextMenu {
             renameItem.setText(buildRenameLabel(itemType));
             deleteItem.setEnabled(true);
             deleteItem.setText(buildDeleteLabel(itemType));
+            exportItem.setEnabled(true);
             popupMenu.show(tree, e.getX(), e.getY());
         }
     }
@@ -158,7 +213,10 @@ public class CollectionTreeContextMenu {
         for (Object component : components) {
             if (component instanceof DefaultMutableTreeNode node) {
                 Object userObject = node.getUserObject();
-                if (userObject instanceof CollectionTreeManager.CollectionRootData rootData) {
+                if (
+                    userObject instanceof
+                        CollectionTreeManager.CollectionRootData rootData
+                ) {
                     return rootData.collectionId;
                 }
             }
@@ -178,11 +236,26 @@ public class CollectionTreeContextMenu {
 
     @FunctionalInterface
     public interface DeleteHandler {
-        void onDelete(String itemType, int collectionId, Integer itemId, DefaultMutableTreeNode node);
+        void onDelete(
+            String itemType,
+            int collectionId,
+            Integer itemId,
+            DefaultMutableTreeNode node
+        );
     }
 
     @FunctionalInterface
     public interface RenameHandler {
-        void onRename(String itemType, int collectionId, Integer itemId, DefaultMutableTreeNode node);
+        void onRename(
+            String itemType,
+            int collectionId,
+            Integer itemId,
+            DefaultMutableTreeNode node
+        );
+    }
+
+    @FunctionalInterface
+    public interface ExportHandler {
+        void onExport(int collectionId);
     }
 }
