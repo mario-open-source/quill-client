@@ -6,7 +6,6 @@ import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.event.ActionListener;
-
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -16,6 +15,7 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTree;
 
 public class LeftPanel {
+
     private JPanel panel;
     private JTree jTree;
     private JList<String> environmentList;
@@ -27,20 +27,35 @@ public class LeftPanel {
     private final String APP_TITLE = "QuillClient";
     private final String IMPORT_TEXT = "Import";
     private final String NEW_TEXT = "New";
-    private final String ADD_TEXT = "+";
-    public LeftPanel(JTree jTree, JList<String> environmentList,
-                     ActionListener importActionListener, ActionListener newActionListener,
-                     ActionListener addCollectionTabActionListener, ActionListener addEnvironmentTabActionListener) {
+
+    public LeftPanel(
+        JTree jTree,
+        JList<String> environmentList,
+        ActionListener importActionListener,
+        ActionListener newActionListener,
+        ActionListener addCollectionTabActionListener,
+        ActionListener addEnvironmentTabActionListener
+    ) {
         this.jTree = jTree;
         this.environmentList = environmentList;
-        this.panel = createPanelWithTree(jTree, environmentList, importActionListener,
-            newActionListener, addCollectionTabActionListener, addEnvironmentTabActionListener);
+        this.panel = createPanelWithTree(
+            jTree,
+            environmentList,
+            importActionListener,
+            newActionListener,
+            addCollectionTabActionListener,
+            addEnvironmentTabActionListener
+        );
     }
-    
-    private JPanel createPanelWithTree(JTree jTree, JList<String> environmentList,
-                                       ActionListener importActionListener, ActionListener newActionListener,
-                                       ActionListener addCollectionTabActionListener,
-                                       ActionListener addEnvironmentTabActionListener) {
+
+    private JPanel createPanelWithTree(
+        JTree jTree,
+        JList<String> environmentList,
+        ActionListener importActionListener,
+        ActionListener newActionListener,
+        ActionListener addCollectionTabActionListener,
+        ActionListener addEnvironmentTabActionListener
+    ) {
         // Use BorderLayout to properly fill available space
         JPanel panel = new JPanel(new BorderLayout());
 
@@ -49,7 +64,11 @@ public class LeftPanel {
 
         // Line 1: label
         titleLabel = new JLabel(APP_TITLE);
-        titleLabel.setFont(titleLabel.getFont().deriveFont(titleLabel.getFont().getSize2D() + 2f));
+        titleLabel.setFont(
+            titleLabel
+                .getFont()
+                .deriveFont(titleLabel.getFont().getSize2D() + 2f)
+        );
         topPanel.add(titleLabel);
 
         // Line 2: Import button
@@ -57,9 +76,15 @@ public class LeftPanel {
         buttonImportCollection = new JButton(IMPORT_TEXT);
         buttonImportCollection.setMargin(new Insets(0, 10, 0, 10));
         Dimension importSize = buttonImportCollection.getPreferredSize();
-        buttonImportCollection.setPreferredSize(new Dimension(importSize.width, fixedHeight));
-        buttonImportCollection.setMinimumSize(new Dimension(importSize.width, fixedHeight));
-        buttonImportCollection.setMaximumSize(new Dimension(importSize.width, fixedHeight));
+        buttonImportCollection.setPreferredSize(
+            new Dimension(importSize.width, fixedHeight)
+        );
+        buttonImportCollection.setMinimumSize(
+            new Dimension(importSize.width, fixedHeight)
+        );
+        buttonImportCollection.setMaximumSize(
+            new Dimension(importSize.width, fixedHeight)
+        );
         if (importActionListener != null) {
             buttonImportCollection.addActionListener(importActionListener);
         }
@@ -70,42 +95,80 @@ public class LeftPanel {
         buttonNewCollection = new JButton(NEW_TEXT);
         buttonNewCollection.setMargin(new Insets(0, 10, 0, 10));
         Dimension newSize = buttonNewCollection.getPreferredSize();
-        buttonNewCollection.setPreferredSize(new Dimension(newSize.width, fixedHeight));
-        buttonNewCollection.setMinimumSize(new Dimension(newSize.width, fixedHeight));
-        buttonNewCollection.setMaximumSize(new Dimension(newSize.width, fixedHeight));
+        buttonNewCollection.setPreferredSize(
+            new Dimension(newSize.width, fixedHeight)
+        );
+        buttonNewCollection.setMinimumSize(
+            new Dimension(newSize.width, fixedHeight)
+        );
+        buttonNewCollection.setMaximumSize(
+            new Dimension(newSize.width, fixedHeight)
+        );
         if (newActionListener != null) {
             buttonNewCollection.addActionListener(newActionListener);
         }
 
         panel.add(topPanel, BorderLayout.NORTH);
 
-        // Wrap the tree in a scroll pane for the Collections tab
-        JScrollPane collectionsPane = new JScrollPane(jTree);
-        collectionsPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        collectionsPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        // Collections tab: button at top, then tree below
+        buttonAddCollectionTab = new JButton(NEW_TEXT);
+        buttonAddCollectionTab.setMargin(new Insets(0, 10, 0, 10));
+        if (addCollectionTabActionListener != null) {
+            buttonAddCollectionTab.addActionListener(
+                addCollectionTabActionListener
+            );
+        }
 
-        // Wrap the tree in a scroll pane for the Environments tab
-        JScrollPane environmentsPane = new JScrollPane(environmentList);
-        environmentsPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        environmentsPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        JScrollPane collectionScrollPane = new JScrollPane(jTree);
+        collectionScrollPane.setVerticalScrollBarPolicy(
+            JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+        );
+        collectionScrollPane.setHorizontalScrollBarPolicy(
+            JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
+        );
+
+        JPanel collectionsPane = new JPanel(new BorderLayout());
+        collectionsPane.add(buttonAddCollectionTab, BorderLayout.NORTH);
+        collectionsPane.add(collectionScrollPane, BorderLayout.CENTER);
+
+        // Environments tab: button at top, then list below
+        buttonAddEnvironmentTab = new JButton(NEW_TEXT);
+        buttonAddEnvironmentTab.setMargin(new Insets(0, 10, 0, 10));
+        if (addEnvironmentTabActionListener != null) {
+            buttonAddEnvironmentTab.addActionListener(
+                addEnvironmentTabActionListener
+            );
+        }
+
+        JScrollPane environmentScrollPane = new JScrollPane(environmentList);
+        environmentScrollPane.setVerticalScrollBarPolicy(
+            JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+        );
+        environmentScrollPane.setHorizontalScrollBarPolicy(
+            JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
+        );
+
+        JPanel environmentsPane = new JPanel(new BorderLayout());
+        environmentsPane.add(buttonAddEnvironmentTab, BorderLayout.NORTH);
+        environmentsPane.add(environmentScrollPane, BorderLayout.CENTER);
 
         // Tabbed pane: Collections and Environments (fills width and resizes with splitter)
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.setMinimumSize(new Dimension(0, 0));
         tabbedPane.addTab("Collections", collectionsPane);
         tabbedPane.addTab("Environments", environmentsPane);
-        tabbedPane.setTabComponentAt(0, createTabHeader("Collections", true, addCollectionTabActionListener));
-        tabbedPane.setTabComponentAt(1, createTabHeader("Environments", false, addEnvironmentTabActionListener));
+        tabbedPane.setTabComponentAt(0, createTabLabel("Collections"));
+        tabbedPane.setTabComponentAt(1, createTabLabel("Environments"));
 
         panel.add(tabbedPane, BorderLayout.CENTER);
 
         return panel;
     }
-    
+
     public JPanel getPanel() {
         return panel;
     }
-    
+
     public JTree getTree() {
         return jTree;
     }
@@ -113,37 +176,21 @@ public class LeftPanel {
     public JList<String> getEnvironmentList() {
         return environmentList;
     }
-    
+
     public JButton getImportButton() {
         return buttonImportCollection;
     }
-    
+
     public JButton getNewButton() {
         return buttonNewCollection;
     }
 
-    private JPanel createTabHeader(String title, boolean isCollectionsTab, ActionListener addActionListener) {
+    private JPanel createTabLabel(String title) {
         JPanel tabHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         tabHeader.setOpaque(false);
 
         JLabel tabLabel = new JLabel(title);
-        JButton addButton = new JButton(ADD_TEXT);
-        addButton.setMargin(new Insets(0, 6, 0, 6));
-        addButton.setFocusable(false);
-        if (addActionListener != null) {
-            addButton.addActionListener(addActionListener);
-        } else {
-            addButton.setEnabled(false);
-        }
-
-        if (isCollectionsTab) {
-            buttonAddCollectionTab = addButton;
-        } else {
-            buttonAddEnvironmentTab = addButton;
-        }
-
         tabHeader.add(tabLabel);
-        tabHeader.add(addButton);
         return tabHeader;
     }
 
@@ -159,7 +206,9 @@ public class LeftPanel {
         }
 
         String trimmedName = environmentName.trim();
-        titleLabel.setText(APP_TITLE + " - Env: " + abbreviate(trimmedName, 20));
+        titleLabel.setText(
+            APP_TITLE + " - Env: " + abbreviate(trimmedName, 20)
+        );
         titleLabel.setToolTipText("Active environment: " + trimmedName);
     }
 
