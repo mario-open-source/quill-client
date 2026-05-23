@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quillapiclient.objects.PostmanEnvironment;
 import com.quillapiclient.objects.PostmanEnvironmentValue;
-
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -15,46 +14,70 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class EnvironmentDao {
+
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    public static int saveEnvironment(PostmanEnvironment environment, String fileName) {
+    public static int saveEnvironment(
+        PostmanEnvironment environment,
+        String fileName
+    ) {
         Connection conn = LiteConnection.getConnection();
         try {
             conn.setAutoCommit(false);
         } catch (SQLException e) {
-            System.err.println("Error setting auto-commit to false: " + e.getMessage());
+            System.err.println(
+                "Error setting auto-commit to false: " + e.getMessage()
+            );
             e.printStackTrace();
             return -1;
         }
 
         try {
             String postmanId = environment.getId();
-            String name = environment.getName() != null ? environment.getName() : fileName;
+            String name =
+                environment.getName() != null
+                    ? environment.getName()
+                    : fileName;
             String variableScope = environment.getVariableScope();
             String exportedAt = environment.getExportedAt();
             String exportedUsing = environment.getExportedUsing();
             String fullEnvironmentJson = null;
 
             try {
-                fullEnvironmentJson = objectMapper.writeValueAsString(environment);
+                fullEnvironmentJson = objectMapper.writeValueAsString(
+                    environment
+                );
             } catch (JsonProcessingException e) {
-                System.err.println("Error serializing environment data to JSON: " + e.getMessage());
+                System.err.println(
+                    "Error serializing environment data to JSON: " +
+                        e.getMessage()
+                );
                 e.printStackTrace();
             }
 
-            int environmentId = findExistingEnvironmentId(conn, postmanId, name);
+            int environmentId = findExistingEnvironmentId(
+                conn,
+                postmanId,
+                name
+            );
             if (environmentId > 0) {
-                try (PreparedStatement deleteStmt = conn.prepareStatement(
-                    "DELETE FROM environments WHERE id = ?")) {
+                try (
+                    PreparedStatement deleteStmt = conn.prepareStatement(
+                        "DELETE FROM environments WHERE id = ?"
+                    )
+                ) {
                     deleteStmt.setInt(1, environmentId);
                     deleteStmt.executeUpdate();
                 }
             }
 
-            try (PreparedStatement stmt = conn.prepareStatement(
-                "INSERT INTO environments (postman_id, name, variable_scope, exported_at, exported_using, full_environment_json) "
-                    + "VALUES (?, ?, ?, ?, ?, ?)",
-                Statement.RETURN_GENERATED_KEYS)) {
+            try (
+                PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO environments (postman_id, name, variable_scope, exported_at, exported_using, full_environment_json) " +
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS
+                )
+            ) {
                 stmt.setString(1, postmanId);
                 stmt.setString(2, name);
                 stmt.setString(3, variableScope);
@@ -72,7 +95,11 @@ public class EnvironmentDao {
             }
 
             if (environmentId > 0 && environment.getValues() != null) {
-                saveEnvironmentValues(conn, environmentId, environment.getValues());
+                saveEnvironmentValues(
+                    conn,
+                    environmentId,
+                    environment.getValues()
+                );
             }
 
             conn.commit();
@@ -81,26 +108,39 @@ public class EnvironmentDao {
             try {
                 conn.rollback();
             } catch (SQLException rollbackEx) {
-                System.err.println("Error rolling back transaction: " + rollbackEx.getMessage());
+                System.err.println(
+                    "Error rolling back transaction: " + rollbackEx.getMessage()
+                );
                 rollbackEx.printStackTrace();
             }
-            System.err.println("Error saving environment to database: " + e.getMessage());
+            System.err.println(
+                "Error saving environment to database: " + e.getMessage()
+            );
             e.printStackTrace();
             return -1;
         } finally {
             try {
                 conn.setAutoCommit(true);
             } catch (SQLException e) {
-                System.err.println("Error resetting auto-commit: " + e.getMessage());
+                System.err.println(
+                    "Error resetting auto-commit: " + e.getMessage()
+                );
                 e.printStackTrace();
             }
         }
     }
 
-    private static int findExistingEnvironmentId(Connection conn, String postmanId, String name) throws SQLException {
+    private static int findExistingEnvironmentId(
+        Connection conn,
+        String postmanId,
+        String name
+    ) throws SQLException {
         if (postmanId != null && !postmanId.isBlank()) {
-            try (PreparedStatement checkStmt = conn.prepareStatement(
-                "SELECT id FROM environments WHERE postman_id = ?")) {
+            try (
+                PreparedStatement checkStmt = conn.prepareStatement(
+                    "SELECT id FROM environments WHERE postman_id = ?"
+                )
+            ) {
                 checkStmt.setString(1, postmanId);
                 ResultSet rs = checkStmt.executeQuery();
                 if (rs.next()) {
@@ -110,8 +150,11 @@ public class EnvironmentDao {
         }
 
         if (name != null && !name.isBlank()) {
-            try (PreparedStatement checkStmt = conn.prepareStatement(
-                "SELECT id FROM environments WHERE name = ?")) {
+            try (
+                PreparedStatement checkStmt = conn.prepareStatement(
+                    "SELECT id FROM environments WHERE name = ?"
+                )
+            ) {
                 checkStmt.setString(1, name);
                 ResultSet rs = checkStmt.executeQuery();
                 if (rs.next()) {
@@ -123,11 +166,17 @@ public class EnvironmentDao {
         return -1;
     }
 
-    private static void saveEnvironmentValues(Connection conn, int environmentId, List<PostmanEnvironmentValue> values)
-        throws SQLException {
-        try (PreparedStatement stmt = conn.prepareStatement(
-            "INSERT INTO environment_values (environment_id, variable_key, variable_value, variable_type, enabled, sort_order) "
-                + "VALUES (?, ?, ?, ?, ?, ?)") ) {
+    private static void saveEnvironmentValues(
+        Connection conn,
+        int environmentId,
+        List<PostmanEnvironmentValue> values
+    ) throws SQLException {
+        try (
+            PreparedStatement stmt = conn.prepareStatement(
+                "INSERT INTO environment_values (environment_id, variable_key, variable_value, variable_type, enabled, sort_order) " +
+                    "VALUES (?, ?, ?, ?, ?, ?)"
+            )
+        ) {
             int sortOrder = 0;
             for (PostmanEnvironmentValue value : values) {
                 stmt.setInt(1, environmentId);
@@ -150,14 +199,21 @@ public class EnvironmentDao {
         List<EnvironmentInfo> environments = new ArrayList<>();
         Connection conn = LiteConnection.getConnection();
 
-        try (PreparedStatement stmt = conn.prepareStatement(
-            "SELECT id, name FROM environments ORDER BY created_at DESC")) {
+        try (
+            PreparedStatement stmt = conn.prepareStatement(
+                "SELECT id, name FROM environments ORDER BY created_at DESC"
+            )
+        ) {
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
-                environments.add(new EnvironmentInfo(rs.getInt("id"), rs.getString("name")));
+                environments.add(
+                    new EnvironmentInfo(rs.getInt("id"), rs.getString("name"))
+                );
             }
         } catch (SQLException e) {
-            System.err.println("Error loading environments from database: " + e.getMessage());
+            System.err.println(
+                "Error loading environments from database: " + e.getMessage()
+            );
             e.printStackTrace();
         }
 
@@ -170,9 +226,12 @@ public class EnvironmentDao {
         }
 
         Connection conn = LiteConnection.getConnection();
-        try (PreparedStatement stmt = conn.prepareStatement(
-            "INSERT INTO environments (name) VALUES (?)",
-            Statement.RETURN_GENERATED_KEYS)) {
+        try (
+            PreparedStatement stmt = conn.prepareStatement(
+                "INSERT INTO environments (name) VALUES (?)",
+                Statement.RETURN_GENERATED_KEYS
+            )
+        ) {
             stmt.setString(1, environmentName.trim());
             stmt.executeUpdate();
 
@@ -187,31 +246,44 @@ public class EnvironmentDao {
         return -1;
     }
 
-    public static boolean updateEnvironmentName(int environmentId, String newName) {
+    public static boolean updateEnvironmentName(
+        int environmentId,
+        String newName
+    ) {
         if (environmentId <= 0 || newName == null || newName.trim().isEmpty()) {
             return false;
         }
 
         Connection conn = LiteConnection.getConnection();
-        try (PreparedStatement stmt = conn.prepareStatement(
-            "UPDATE environments SET name = ? WHERE id = ?")) {
+        try (
+            PreparedStatement stmt = conn.prepareStatement(
+                "UPDATE environments SET name = ? WHERE id = ?"
+            )
+        ) {
             stmt.setString(1, newName.trim());
             stmt.setInt(2, environmentId);
             return stmt.executeUpdate() > 0;
         } catch (SQLException e) {
-            System.err.println("Error updating environment name: " + e.getMessage());
+            System.err.println(
+                "Error updating environment name: " + e.getMessage()
+            );
             e.printStackTrace();
             return false;
         }
     }
 
-    public static List<EnvironmentValueRecord> getEnvironmentValueRecords(int environmentId) {
+    public static List<EnvironmentValueRecord> getEnvironmentValueRecords(
+        int environmentId
+    ) {
         List<EnvironmentValueRecord> records = new ArrayList<>();
         Connection conn = LiteConnection.getConnection();
 
-        try (PreparedStatement stmt = conn.prepareStatement(
-            "SELECT id, variable_key, variable_value, variable_type, enabled FROM environment_values "
-                + "WHERE environment_id = ? ORDER BY sort_order ASC, id ASC")) {
+        try (
+            PreparedStatement stmt = conn.prepareStatement(
+                "SELECT id, variable_key, variable_value, variable_type, enabled FROM environment_values " +
+                    "WHERE environment_id = ? ORDER BY sort_order ASC, id ASC"
+            )
+        ) {
             stmt.setInt(1, environmentId);
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
@@ -228,29 +300,42 @@ public class EnvironmentDao {
                 records.add(new EnvironmentValueRecord(rs.getInt("id"), value));
             }
         } catch (SQLException e) {
-            System.err.println("Error loading environment values from database: " + e.getMessage());
+            System.err.println(
+                "Error loading environment values from database: " +
+                    e.getMessage()
+            );
             e.printStackTrace();
         }
 
         return records;
     }
 
-    public static List<PostmanEnvironmentValue> getEnvironmentValues(int environmentId) {
+    public static List<PostmanEnvironmentValue> getEnvironmentValues(
+        int environmentId
+    ) {
         List<PostmanEnvironmentValue> values = new ArrayList<>();
-        for (EnvironmentValueRecord record : getEnvironmentValueRecords(environmentId)) {
+        for (EnvironmentValueRecord record : getEnvironmentValueRecords(
+            environmentId
+        )) {
             values.add(record.value);
         }
         return values;
     }
 
-    public static boolean deleteEnvironmentValuesByIds(int environmentId, List<Integer> valueIds) {
+    public static boolean deleteEnvironmentValuesByIds(
+        int environmentId,
+        List<Integer> valueIds
+    ) {
         if (environmentId <= 0 || valueIds == null || valueIds.isEmpty()) {
             return true;
         }
 
         Connection conn = LiteConnection.getConnection();
-        try (PreparedStatement stmt = conn.prepareStatement(
-            "DELETE FROM environment_values WHERE environment_id = ? AND id = ?")) {
+        try (
+            PreparedStatement stmt = conn.prepareStatement(
+                "DELETE FROM environment_values WHERE environment_id = ? AND id = ?"
+            )
+        ) {
             boolean hasBatch = false;
             for (Integer valueId : valueIds) {
                 if (valueId == null || valueId <= 0) {
@@ -267,19 +352,81 @@ public class EnvironmentDao {
             }
             return true;
         } catch (SQLException e) {
-            System.err.println("Error deleting environment values: " + e.getMessage());
+            System.err.println(
+                "Error deleting environment values: " + e.getMessage()
+            );
             e.printStackTrace();
             return false;
         }
     }
 
-    public static boolean replaceEnvironmentValues(int environmentId, List<PostmanEnvironmentValue> values) {
+    public static boolean deleteEnvironment(int environmentId) {
+        if (environmentId <= 0) {
+            return false;
+        }
+
         Connection conn = LiteConnection.getConnection();
         try {
             conn.setAutoCommit(false);
 
-            try (PreparedStatement deleteStmt = conn.prepareStatement(
-                "DELETE FROM environment_values WHERE environment_id = ?")) {
+            try (
+                PreparedStatement deleteValuesStmt = conn.prepareStatement(
+                    "DELETE FROM environment_values WHERE environment_id = ?"
+                )
+            ) {
+                deleteValuesStmt.setInt(1, environmentId);
+                deleteValuesStmt.executeUpdate();
+            }
+
+            try (
+                PreparedStatement deleteEnvStmt = conn.prepareStatement(
+                    "DELETE FROM environments WHERE id = ?"
+                )
+            ) {
+                deleteEnvStmt.setInt(1, environmentId);
+                deleteEnvStmt.executeUpdate();
+            }
+
+            conn.commit();
+            return true;
+        } catch (SQLException e) {
+            try {
+                conn.rollback();
+            } catch (SQLException rollbackEx) {
+                System.err.println(
+                    "Error rolling back delete environment transaction: " +
+                        rollbackEx.getMessage()
+                );
+                rollbackEx.printStackTrace();
+            }
+            System.err.println("Error deleting environment: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        } finally {
+            try {
+                conn.setAutoCommit(true);
+            } catch (SQLException e) {
+                System.err.println(
+                    "Error resetting auto-commit: " + e.getMessage()
+                );
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public static boolean replaceEnvironmentValues(
+        int environmentId,
+        List<PostmanEnvironmentValue> values
+    ) {
+        Connection conn = LiteConnection.getConnection();
+        try {
+            conn.setAutoCommit(false);
+
+            try (
+                PreparedStatement deleteStmt = conn.prepareStatement(
+                    "DELETE FROM environment_values WHERE environment_id = ?"
+                )
+            ) {
                 deleteStmt.setInt(1, environmentId);
                 deleteStmt.executeUpdate();
             }
@@ -294,23 +441,31 @@ public class EnvironmentDao {
             try {
                 conn.rollback();
             } catch (SQLException rollbackEx) {
-                System.err.println("Error rolling back environment values transaction: " + rollbackEx.getMessage());
+                System.err.println(
+                    "Error rolling back environment values transaction: " +
+                        rollbackEx.getMessage()
+                );
                 rollbackEx.printStackTrace();
             }
-            System.err.println("Error saving environment values: " + e.getMessage());
+            System.err.println(
+                "Error saving environment values: " + e.getMessage()
+            );
             e.printStackTrace();
             return false;
         } finally {
             try {
                 conn.setAutoCommit(true);
             } catch (SQLException e) {
-                System.err.println("Error resetting auto-commit: " + e.getMessage());
+                System.err.println(
+                    "Error resetting auto-commit: " + e.getMessage()
+                );
                 e.printStackTrace();
             }
         }
     }
 
     public static class EnvironmentInfo {
+
         public final int id;
         public final String name;
 
@@ -321,6 +476,7 @@ public class EnvironmentDao {
     }
 
     public static class EnvironmentValueRecord {
+
         public final int id;
         public final PostmanEnvironmentValue value;
 

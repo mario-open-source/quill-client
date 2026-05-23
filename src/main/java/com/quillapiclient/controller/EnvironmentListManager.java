@@ -3,15 +3,6 @@ package com.quillapiclient.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quillapiclient.db.EnvironmentDao;
 import com.quillapiclient.objects.PostmanEnvironment;
-
-import javax.swing.DefaultListModel;
-import javax.swing.JList;
-import javax.swing.JLayeredPane;
-import javax.swing.JOptionPane;
-import javax.swing.JRootPane;
-import javax.swing.JTextField;
-import javax.swing.KeyStroke;
-import javax.swing.SwingUtilities;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.FocusAdapter;
@@ -21,14 +12,26 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.swing.DefaultListModel;
+import javax.swing.JLayeredPane;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.JRootPane;
+import javax.swing.JTextField;
+import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 
 public class EnvironmentListManager {
+
     private final JList<String> list;
     private final DefaultListModel<String> listModel;
-    private final java.util.List<EnvironmentDao.EnvironmentInfo> environmentInfos;
+    private final java.util.List<
+        EnvironmentDao.EnvironmentInfo
+    > environmentInfos;
     private Integer activeEnvironmentId;
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    private static final String DEFAULT_NEW_ENVIRONMENT_NAME = "New Environment";
+    private static final String DEFAULT_NEW_ENVIRONMENT_NAME =
+        "New Environment";
 
     public EnvironmentListManager() {
         listModel = new DefaultListModel<>();
@@ -43,17 +46,25 @@ public class EnvironmentListManager {
         }
 
         try {
-            PostmanEnvironment environment = objectMapper.readValue(file, PostmanEnvironment.class);
-            int environmentId = EnvironmentDao.saveEnvironment(environment, file.getName());
+            PostmanEnvironment environment = objectMapper.readValue(
+                file,
+                PostmanEnvironment.class
+            );
+            int environmentId = EnvironmentDao.saveEnvironment(
+                environment,
+                file.getName()
+            );
             if (environmentId > 0) {
                 loadAllEnvironments();
             }
         } catch (Exception e) {
             e.printStackTrace();
-            JOptionPane.showMessageDialog(null,
+            JOptionPane.showMessageDialog(
+                null,
                 "Error loading environment: " + e.getMessage(),
                 "Error",
-                JOptionPane.ERROR_MESSAGE);
+                JOptionPane.ERROR_MESSAGE
+            );
         }
     }
 
@@ -65,7 +76,10 @@ public class EnvironmentListManager {
         for (EnvironmentDao.EnvironmentInfo info : EnvironmentDao.getAllEnvironments()) {
             listModel.addElement(info.name);
             environmentInfos.add(info);
-            if (previousActiveEnvironmentId != null && info.id == previousActiveEnvironmentId) {
+            if (
+                previousActiveEnvironmentId != null &&
+                info.id == previousActiveEnvironmentId
+            ) {
                 activeEnvironmentStillExists = true;
             }
         }
@@ -90,8 +104,27 @@ public class EnvironmentListManager {
         activeEnvironmentId = (info != null) ? info.id : null;
     }
 
+    public boolean deleteEnvironment(int index) {
+        EnvironmentDao.EnvironmentInfo info = getEnvironmentInfoAt(index);
+        if (info == null) {
+            return false;
+        }
+
+        boolean deleted = EnvironmentDao.deleteEnvironment(info.id);
+        if (deleted) {
+            if (activeEnvironmentId != null && activeEnvironmentId == info.id) {
+                activeEnvironmentId = null;
+            }
+            listModel.remove(index);
+            environmentInfos.remove(index);
+        }
+        return deleted;
+    }
+
     public void createEnvironmentAndStartEditing() {
-        int environmentId = EnvironmentDao.createEnvironment(DEFAULT_NEW_ENVIRONMENT_NAME);
+        int environmentId = EnvironmentDao.createEnvironment(
+            DEFAULT_NEW_ENVIRONMENT_NAME
+        );
         if (environmentId <= 0) {
             JOptionPane.showMessageDialog(
                 null,
@@ -102,9 +135,11 @@ public class EnvironmentListManager {
             return;
         }
 
-        EnvironmentDao.EnvironmentInfo newInfo = new EnvironmentDao.EnvironmentInfo(
-            environmentId, DEFAULT_NEW_ENVIRONMENT_NAME
-        );
+        EnvironmentDao.EnvironmentInfo newInfo =
+            new EnvironmentDao.EnvironmentInfo(
+                environmentId,
+                DEFAULT_NEW_ENVIRONMENT_NAME
+            );
         listModel.add(0, DEFAULT_NEW_ENVIRONMENT_NAME);
         environmentInfos.add(0, newInfo);
         list.ensureIndexIsVisible(0);
@@ -133,21 +168,32 @@ public class EnvironmentListManager {
         }
 
         Map<String, String> environmentVariables = new HashMap<>();
-        for (com.quillapiclient.objects.PostmanEnvironmentValue value
-                : EnvironmentDao.getEnvironmentValues(activeEnvironmentId)) {
-            if (value == null || value.getKey() == null || value.getKey().trim().isEmpty()) {
+        for (com.quillapiclient.objects.PostmanEnvironmentValue value : EnvironmentDao.getEnvironmentValues(
+            activeEnvironmentId
+        )) {
+            if (
+                value == null ||
+                value.getKey() == null ||
+                value.getKey().trim().isEmpty()
+            ) {
                 continue;
             }
             // Treat null as enabled (Postman behavior for missing enabled flag).
             if (Boolean.FALSE.equals(value.getEnabled())) {
                 continue;
             }
-            environmentVariables.put(value.getKey().trim(), value.getValue() != null ? value.getValue() : "");
+            environmentVariables.put(
+                value.getKey().trim(),
+                value.getValue() != null ? value.getValue() : ""
+            );
         }
         return environmentVariables;
     }
 
-    private void startInlineEdit(int index, EnvironmentDao.EnvironmentInfo info) {
+    private void startInlineEdit(
+        int index,
+        EnvironmentDao.EnvironmentInfo info
+    ) {
         Rectangle cellBounds = list.getCellBounds(index, index);
         if (cellBounds == null) {
             return;
@@ -159,11 +205,25 @@ public class EnvironmentListManager {
         }
 
         JTextField editor = new JTextField(info.name);
-        editor.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(120, 120, 120)));
+        editor.setBorder(
+            javax.swing.BorderFactory.createLineBorder(
+                new java.awt.Color(120, 120, 120)
+            )
+        );
         editor.setFocusTraversalKeysEnabled(false);
 
-        Point location = SwingUtilities.convertPoint(list, cellBounds.x, cellBounds.y, rootPane.getLayeredPane());
-        editor.setBounds(location.x, location.y, Math.max(cellBounds.width, 180), cellBounds.height);
+        Point location = SwingUtilities.convertPoint(
+            list,
+            cellBounds.x,
+            cellBounds.y,
+            rootPane.getLayeredPane()
+        );
+        editor.setBounds(
+            location.x,
+            location.y,
+            Math.max(cellBounds.width, 180),
+            cellBounds.height
+        );
         rootPane.getLayeredPane().add(editor, JLayeredPane.POPUP_LAYER);
         rootPane.getLayeredPane().repaint();
         AtomicBoolean finished = new AtomicBoolean(false);
@@ -180,17 +240,24 @@ public class EnvironmentListManager {
             if (finished.get()) {
                 return;
             }
-            String newName = editor.getText() != null ? editor.getText().trim() : "";
+            String newName =
+                editor.getText() != null ? editor.getText().trim() : "";
             if (newName.isEmpty()) {
                 cancelEdit.run();
                 return;
             }
 
             if (!newName.equals(info.name)) {
-                boolean saved = EnvironmentDao.updateEnvironmentName(info.id, newName);
+                boolean saved = EnvironmentDao.updateEnvironmentName(
+                    info.id,
+                    newName
+                );
                 if (saved) {
                     listModel.set(index, newName);
-                    environmentInfos.set(index, new EnvironmentDao.EnvironmentInfo(info.id, newName));
+                    environmentInfos.set(
+                        index,
+                        new EnvironmentDao.EnvironmentInfo(info.id, newName)
+                    );
                 } else {
                     JOptionPane.showMessageDialog(
                         null,
@@ -204,19 +271,26 @@ public class EnvironmentListManager {
         };
 
         editor.addActionListener(e -> commitEdit.run());
-        editor.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "cancelEdit");
-        editor.getActionMap().put("cancelEdit", new javax.swing.AbstractAction() {
-            @Override
-            public void actionPerformed(java.awt.event.ActionEvent e) {
-                cancelEdit.run();
+        editor
+            .getInputMap()
+            .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "cancelEdit");
+        editor.getActionMap().put(
+            "cancelEdit",
+            new javax.swing.AbstractAction() {
+                @Override
+                public void actionPerformed(java.awt.event.ActionEvent e) {
+                    cancelEdit.run();
+                }
             }
-        });
-        editor.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                commitEdit.run();
+        );
+        editor.addFocusListener(
+            new FocusAdapter() {
+                @Override
+                public void focusLost(FocusEvent e) {
+                    commitEdit.run();
+                }
             }
-        });
+        );
 
         SwingUtilities.invokeLater(() -> {
             editor.requestFocusInWindow();
