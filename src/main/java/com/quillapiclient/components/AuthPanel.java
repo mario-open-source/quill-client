@@ -1,6 +1,7 @@
 package com.quillapiclient.components;
 
 import com.quillapiclient.objects.Auth;
+import com.quillapiclient.objects.AuthType;
 import com.quillapiclient.objects.Credential;
 import com.quillapiclient.objects.Request;
 import java.awt.*;
@@ -24,16 +25,14 @@ public class AuthPanel {
     private CardLayout cardLayout;
     private JPanel cardsPanel;
 
-    private final String[] authTypes = {
-        "No auth",
-        "Basic auth",
-        "Bearer token",
-        "Jwt bearer",
-    };
-    private final String NO_AUTH_TEXT = "No auth";
-    private final String BASIC_AUTH_TEXT = "Basic auth";
-    private final String BEARER_TOKEN_TEXT = "Bearer token";
-    private final String JWT_BEARER_TEXT = "Jwt bearer";
+    // Card-layout keys (must match AuthType display names)
+    private static final String NO_AUTH_TEXT = AuthType.NONE.getDisplayName();
+    private static final String BASIC_AUTH_TEXT =
+        AuthType.BASIC.getDisplayName();
+    private static final String BEARER_TOKEN_TEXT =
+        AuthType.BEARER.getDisplayName();
+    private static final String JWT_BEARER_TEXT =
+        AuthType.JWT_BEARER.getDisplayName();
 
     public AuthPanel() {
         authPanel = new JPanel(new BorderLayout());
@@ -49,7 +48,7 @@ public class AuthPanel {
         jwtTokenField.setToolTipText("JWT Token");
 
         // Combo box at top
-        authTypeComboBox = new JComboBox<>(authTypes);
+        authTypeComboBox = new JComboBox<>(AuthType.displayNames());
 
         // Build cards once
         cardLayout = new CardLayout();
@@ -239,8 +238,7 @@ public class AuthPanel {
     }
 
     public String getToken() {
-        String type = getAuthType();
-        if (JWT_BEARER_TEXT.equals(type)) {
+        if (AuthType.JWT_BEARER == AuthType.fromDisplayName(getAuthType())) {
             return jwtTokenField != null ? jwtTokenField.getText() : "";
         }
         return tokenField != null ? tokenField.getText() : "";
@@ -255,16 +253,16 @@ public class AuthPanel {
     }
 
     public Auth buildAuth() {
-        String authType = getAuthType();
+        AuthType authType = AuthType.fromDisplayName(getAuthType());
 
-        if (authType == null || authType.equals(NO_AUTH_TEXT)) {
+        if (authType == AuthType.NONE) {
             return null;
         }
 
         Auth auth = new Auth();
-        auth.setType(authType.toLowerCase().replace(" ", ""));
+        auth.setType(authType.getDbKey());
 
-        if (authType.equals(BASIC_AUTH_TEXT)) {
+        if (authType == AuthType.BASIC) {
             List<Credential> basic = new ArrayList<>();
             Credential usernameCred = new Credential();
             usernameCred.setKey("username");
@@ -276,8 +274,7 @@ public class AuthPanel {
             basic.add(passwordCred);
             auth.setBasic(basic);
         } else if (
-            authType.equals(BEARER_TOKEN_TEXT) ||
-            authType.equals(JWT_BEARER_TEXT)
+            authType == AuthType.BEARER || authType == AuthType.JWT_BEARER
         ) {
             List<Credential> bearer = new ArrayList<>();
             Credential tokenCred = new Credential();

@@ -274,15 +274,16 @@ public class CollectionDao {
         }
 
         // Extract auth details
-        String authType =
+        String authTypeStr =
             request.getAuth() != null ? request.getAuth().getType() : null;
+        AuthType authType = AuthType.fromDbKey(authTypeStr);
         String authBasicUsername = null;
         String authBasicPassword = null;
         String authBearerToken = null;
 
         if (request.getAuth() != null) {
             if (
-                "basic".equalsIgnoreCase(authType) &&
+                authType == AuthType.BASIC &&
                 request.getAuth().getBasic() != null
             ) {
                 for (Credential cred : request.getAuth().getBasic()) {
@@ -293,7 +294,8 @@ public class CollectionDao {
                     }
                 }
             } else if (
-                "bearer".equalsIgnoreCase(authType) &&
+                (authType == AuthType.BEARER ||
+                    authType == AuthType.JWT_BEARER) &&
                 request.getAuth().getBearer() != null
             ) {
                 for (Credential cred : request.getAuth().getBearer()) {
@@ -323,7 +325,10 @@ public class CollectionDao {
             stmt.setString(6, bodyMode);
             stmt.setString(7, bodyRaw);
             stmt.setString(8, bodyLanguage);
-            stmt.setString(9, authType);
+            stmt.setString(
+                9,
+                authType != AuthType.NONE ? authType.getDbKey() : null
+            );
             stmt.setString(10, authBasicUsername);
             stmt.setString(11, authBasicPassword);
             stmt.setString(12, authBearerToken);
@@ -856,15 +861,16 @@ public class CollectionDao {
      */
     private static Auth reconstructAuth(ResultSet rs) {
         try {
-            String authType = rs.getString("auth_type");
-            if (authType == null) {
+            String authTypeStr = rs.getString("auth_type");
+            AuthType authType = AuthType.fromDbKey(authTypeStr);
+            if (authType == AuthType.NONE) {
                 return null;
             }
 
             Auth auth = new Auth();
-            auth.setType(authType);
+            auth.setType(authType.getDbKey());
 
-            if ("basic".equalsIgnoreCase(authType)) {
+            if (authType == AuthType.BASIC) {
                 List<Credential> basic = new ArrayList<>();
                 String username = rs.getString("auth_basic_username");
                 String password = rs.getString("auth_basic_password");
@@ -881,7 +887,9 @@ public class CollectionDao {
                     basic.add(cred);
                 }
                 auth.setBasic(basic);
-            } else if ("bearer".equalsIgnoreCase(authType)) {
+            } else if (
+                authType == AuthType.BEARER || authType == AuthType.JWT_BEARER
+            ) {
                 List<Credential> bearer = new ArrayList<>();
                 String token = rs.getString("auth_bearer_token");
                 if (token != null) {
@@ -895,10 +903,6 @@ public class CollectionDao {
 
             return auth;
         } catch (SQLException e) {
-            System.err.println(
-                "Error reconstructing auth from database: " + e.getMessage()
-            );
-            e.printStackTrace();
             return null;
         }
     }
