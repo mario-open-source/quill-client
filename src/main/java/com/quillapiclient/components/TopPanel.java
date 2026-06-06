@@ -1,5 +1,6 @@
 package com.quillapiclient.components;
 
+import com.quillapiclient.objects.Request;
 import com.quillapiclient.utility.AppColorTheme;
 import com.quillapiclient.utility.MethodColorUtil;
 import java.awt.*;
@@ -198,6 +199,26 @@ public class TopPanel {
 
     public JButton getSaveButton() {
         return saveButton;
+    }
+
+    /**
+     * Populates the URL text field and method dropdown from a Request.
+     */
+    public void populateFromRequest(Request request) {
+        if (request == null) {
+            setUrlText("");
+            return;
+        }
+
+        if (request.getUrl() != null && request.getUrl().getRaw() != null) {
+            setUrlText(request.getUrl().getRaw());
+        } else {
+            setUrlText("");
+        }
+
+        if (request.getMethod() != null) {
+            methodDropdown.setSelectedItem(request.getMethod());
+        }
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.quillapiclient.components;
 
+import com.quillapiclient.components.loader.ScriptLoader;
 import com.quillapiclient.objects.*;
 import java.awt.*;
 import java.awt.Font;
@@ -36,6 +37,7 @@ public class RequestPanel {
     private final String SCRIPTS_LABEL = "Scripts";
 
     private ScriptsPanel scriptsPanel;
+    private final ScriptLoader scriptLoader = new ScriptLoader();
 
     public RequestPanel() {
         panel = new JPanel(new BorderLayout());
@@ -179,30 +181,11 @@ public class RequestPanel {
         // Check if there are unsaved changes for this item
         Request requestToLoad = unsavedChanges.getOrDefault(itemId, request);
 
-        // Populate URL (using placeholder-aware method) - use requestToLoad, not request
-        if (
-            requestToLoad.getUrl() != null &&
-            requestToLoad.getUrl().getRaw() != null
-        ) {
-            topPanel.setUrlText(requestToLoad.getUrl().getRaw());
-        } else {
-            topPanel.setUrlText("");
-        }
-
-        // Populate method
-        if (requestToLoad.getMethod() != null) {
-            methodDropdown.setSelectedItem(requestToLoad.getMethod());
-        }
+        // Populate URL and method (delegated to TopPanel)
+        topPanel.populateFromRequest(requestToLoad);
 
         // Populate body
-        if (
-            requestToLoad.getBody() != null &&
-            requestToLoad.getBody().getRaw() != null
-        ) {
-            bodyTextArea.setText(requestToLoad.getBody().getRaw());
-        } else {
-            bodyTextArea.setText("");
-        }
+        populateBody(requestToLoad);
 
         // Populate headers if available
         if (
@@ -261,40 +244,19 @@ public class RequestPanel {
     }
 
     private void populateScripts(int itemId) {
-        if (itemId <= 0 || scriptsPanel == null) return;
+        scriptLoader.loadScripts(itemId, scriptsPanel);
+    }
 
-        int collectionId =
-            com.quillapiclient.db.CollectionDao.getCollectionIdByItemId(itemId);
-        if (collectionId <= 0) return;
-
-        // Try item-level scripts first, fall back to collection-level
-        String preScript = com.quillapiclient.db.CollectionDao.loadScript(
-            collectionId,
-            itemId,
-            "prerequest"
-        );
-        if (preScript == null) {
-            preScript = com.quillapiclient.db.CollectionDao.loadScript(
-                collectionId,
-                null,
-                "prerequest"
-            );
+    private void populateBody(Request request) {
+        if (
+            request != null &&
+            request.getBody() != null &&
+            request.getBody().getRaw() != null
+        ) {
+            bodyTextArea.setText(request.getBody().getRaw());
+        } else {
+            bodyTextArea.setText("");
         }
-        String testScript = com.quillapiclient.db.CollectionDao.loadScript(
-            collectionId,
-            itemId,
-            "test"
-        );
-        if (testScript == null) {
-            testScript = com.quillapiclient.db.CollectionDao.loadScript(
-                collectionId,
-                null,
-                "test"
-            );
-        }
-
-        scriptsPanel.setPreRequestScript(preScript);
-        scriptsPanel.setTestScript(testScript);
     }
 
     /**
