@@ -1,14 +1,14 @@
 package com.quillapiclient.components;
 
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.Font;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 import javax.swing.JSplitPane;
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.Font;
+import javax.swing.JTextArea;
 
 /**
  * Displays and edits pre-request and post-response (test) scripts
@@ -31,8 +31,12 @@ public class ScriptsPanel {
         preRequestArea = createScriptTextArea();
 
         JScrollPane preScroll = new JScrollPane(preRequestArea);
-        preScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        preScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        preScroll.setVerticalScrollBarPolicy(
+            JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+        );
+        preScroll.setHorizontalScrollBarPolicy(
+            JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
+        );
         prePanel.add(preScroll, BorderLayout.CENTER);
 
         // Test area
@@ -40,8 +44,12 @@ public class ScriptsPanel {
         testArea = createScriptTextArea();
 
         JScrollPane testScroll = new JScrollPane(testArea);
-        testScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        testScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        testScroll.setVerticalScrollBarPolicy(
+            JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+        );
+        testScroll.setHorizontalScrollBarPolicy(
+            JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
+        );
         testPanel.add(testScroll, BorderLayout.CENTER);
 
         // Split pane: pre-request on top, test on bottom
@@ -60,7 +68,11 @@ public class ScriptsPanel {
         section.setBorder(BorderFactory.createEmptyBorder(8, 8, 4, 8));
 
         JLabel header = new JLabel(title);
-        header.setFont(header.getFont().deriveFont(Font.BOLD, header.getFont().getSize2D() + 1f));
+        header.setFont(
+            header
+                .getFont()
+                .deriveFont(Font.BOLD, header.getFont().getSize2D() + 1f)
+        );
         section.add(header, BorderLayout.NORTH);
 
         return section;
@@ -71,7 +83,9 @@ public class ScriptsPanel {
         area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
         area.setTabSize(4);
         area.setLineWrap(false);
-        area.setToolTipText("JavaScript — use pm.environment, pm.collectionVariables, pm.globals, pm.request, pm.response");
+        area.setToolTipText(
+            "JavaScript — use pm.environment, pm.collectionVariables, pm.globals, pm.request, pm.response"
+        );
         return area;
     }
 
@@ -103,5 +117,19 @@ public class ScriptsPanel {
 
     public void setTestScript(String script) {
         testArea.setText(script != null ? script : "");
+    }
+
+    /**
+     * Registers a callback that fires whenever either script text area changes.
+     */
+    public void addChangeListener(Runnable listener) {
+        java.awt.event.KeyAdapter adapter = new java.awt.event.KeyAdapter() {
+            @Override
+            public void keyPressed(java.awt.event.KeyEvent e) {
+                listener.run();
+            }
+        };
+        preRequestArea.addKeyListener(adapter);
+        testArea.addKeyListener(adapter);
     }
 }

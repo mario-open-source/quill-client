@@ -295,19 +295,24 @@ public class AuthPanel {
     }
 
     /**
-     * Sets a key listener on all auth input fields
+     * Registers a callback that fires whenever any auth field or the auth type changes.
      */
-    public void setKeyListener(java.awt.event.KeyListener listener) {
+    public void addChangeListener(Runnable listener) {
+        java.awt.event.KeyAdapter keyAdapter = new java.awt.event.KeyAdapter() {
+            @Override
+            public void keyPressed(java.awt.event.KeyEvent e) {
+                listener.run();
+            }
+        };
         if (userField != null) {
-            userField.addKeyListener(listener);
+            userField.addKeyListener(keyAdapter);
         }
         if (passField != null) {
-            passField.addKeyListener(listener);
+            passField.addKeyListener(keyAdapter);
         }
         if (tokenField != null) {
-            tokenField.addKeyListener(listener);
+            tokenField.addKeyListener(keyAdapter);
         }
-        // For combo box, use action listener to enable save button
-        // We'll handle this separately in RequestPanel since we can't easily create a KeyEvent
+        authTypeComboBox.addActionListener(e -> listener.run());
     }
 }

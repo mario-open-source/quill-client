@@ -1,20 +1,21 @@
 package com.quillapiclient.components;
 
-import com.quillapiclient.utility.MethodColorUtil;
 import com.quillapiclient.utility.AppColorTheme;
-
+import com.quillapiclient.utility.MethodColorUtil;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
-
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 
 public class TopPanel {
+
     private JPanel panel;
     private JComboBox<String> methodDropdown;
     private JTextField urlField;
@@ -24,40 +25,56 @@ public class TopPanel {
     private final String SEND_TEXT = "Send";
     private final String URL_PLACEHOLDER = "Enter URL or paste text";
     private boolean isPlaceholderShown = true;
-    private final String[] methods = {"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"};
-    
+    private final String[] methods = {
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+        "PATCH",
+        "OPTIONS",
+        "HEAD",
+    };
+
     public TopPanel() {
         this.panel = createPanel();
     }
-    
+
     private JPanel createPanel() {
         JPanel topPanel = new JPanel(new BorderLayout());
 
         methodDropdown = new JComboBox<>(methods);
-        
+
         // Set custom renderer for colored text
         methodDropdown.setRenderer(new MethodComboBoxRenderer());
-        
+
         // Add listener to update border color when selection changes
-        methodDropdown.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                updateMethodBorder();
+        methodDropdown.addActionListener(
+            new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    updateMethodBorder();
+                }
             }
-        });
-        
+        );
+
         // Set initial border color
         updateMethodBorder();
-        
+
         // Set fixed height for all components (30 pixels) - only constrain height, not width
         int fixedHeight = 35;
-        
+
         // Method dropdown
         Dimension methodSize = methodDropdown.getPreferredSize();
-        methodDropdown.setPreferredSize(new Dimension(methodSize.width, fixedHeight));
-        methodDropdown.setMinimumSize(new Dimension(methodSize.width, fixedHeight));
-        methodDropdown.setMaximumSize(new Dimension(Integer.MAX_VALUE, fixedHeight));
-        
+        methodDropdown.setPreferredSize(
+            new Dimension(methodSize.width, fixedHeight)
+        );
+        methodDropdown.setMinimumSize(
+            new Dimension(methodSize.width, fixedHeight)
+        );
+        methodDropdown.setMaximumSize(
+            new Dimension(Integer.MAX_VALUE, fixedHeight)
+        );
+
         // URL field with placeholder text
         urlField = new JTextField();
         setupPlaceholderText();
@@ -65,7 +82,7 @@ public class TopPanel {
         urlField.setPreferredSize(new Dimension(urlSize.width, fixedHeight));
         urlField.setMinimumSize(new Dimension(0, fixedHeight));
         urlField.setMaximumSize(new Dimension(Integer.MAX_VALUE, fixedHeight));
-        
+
         // Send button
         sendButton = new JButton(SEND_TEXT);
         sendButton.setBackground(new Color(13, 90, 167));
@@ -74,7 +91,7 @@ public class TopPanel {
         sendButton.setPreferredSize(new Dimension(sendSize.width, fixedHeight));
         sendButton.setMinimumSize(new Dimension(sendSize.width, fixedHeight));
         sendButton.setMaximumSize(new Dimension(sendSize.width, fixedHeight));
-        
+
         // Save button
         saveButton = new JButton(SAVE_TEXT);
         saveButton.setMargin(new Insets(0, 10, 0, 10)); // Remove vertical padding
@@ -87,7 +104,7 @@ public class TopPanel {
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         buttons.add(sendButton);
         buttons.add(saveButton);
-        
+
         // Set height constraints after adding buttons so width is calculated correctly
         Dimension buttonsSize = buttons.getPreferredSize();
         buttons.setPreferredSize(new Dimension(buttonsSize.width, fixedHeight));
@@ -99,53 +116,57 @@ public class TopPanel {
         topPanel.add(buttons, BorderLayout.EAST);
         return topPanel;
     }
-    
+
     private void setupPlaceholderText() {
         urlField.setText(URL_PLACEHOLDER);
         urlField.setForeground(Color.GRAY);
         isPlaceholderShown = true;
-        
-        urlField.addFocusListener(new FocusListener() {
-            @Override
-            public void focusGained(FocusEvent e) {
-                if (isPlaceholderShown) {
-                    urlField.setText("");
-                    urlField.setForeground(AppColorTheme.TEXT_FIELD_FOREGROUND);
-                    isPlaceholderShown = false;
+
+        urlField.addFocusListener(
+            new FocusListener() {
+                @Override
+                public void focusGained(FocusEvent e) {
+                    if (isPlaceholderShown) {
+                        urlField.setText("");
+                        urlField.setForeground(
+                            AppColorTheme.TEXT_FIELD_FOREGROUND
+                        );
+                        isPlaceholderShown = false;
+                    }
+                }
+
+                @Override
+                public void focusLost(FocusEvent e) {
+                    if (urlField.getText().trim().isEmpty()) {
+                        urlField.setText(URL_PLACEHOLDER);
+                        urlField.setForeground(Color.GRAY);
+                        isPlaceholderShown = true;
+                    }
                 }
             }
-            
-            @Override
-            public void focusLost(FocusEvent e) {
-                if (urlField.getText().trim().isEmpty()) {
-                    urlField.setText(URL_PLACEHOLDER);
-                    urlField.setForeground(Color.GRAY);
-                    isPlaceholderShown = true;
-                }
-            }
-        });
+        );
     }
-    
+
     private void updateMethodBorder() {
         String selectedMethod = (String) methodDropdown.getSelectedItem();
         Color methodColor = MethodColorUtil.getMethodColor(selectedMethod);
-        
+
         // Set the text color to match the border
         methodDropdown.setForeground(methodColor);
     }
-    
+
     public JPanel getPanel() {
         return panel;
     }
-    
+
     public JComboBox<String> getMethodDropdown() {
         return methodDropdown;
     }
-    
+
     public JTextField getUrlField() {
         return urlField;
     }
-    
+
     /**
      * Gets the URL text, returning empty string if placeholder is shown
      */
@@ -155,7 +176,7 @@ public class TopPanel {
         }
         return urlField.getText().trim();
     }
-    
+
     /**
      * Sets the URL text, clearing placeholder if needed
      */
@@ -170,12 +191,27 @@ public class TopPanel {
             isPlaceholderShown = false;
         }
     }
-    
+
     public JButton getSendButton() {
         return sendButton;
     }
-    
+
     public JButton getSaveButton() {
         return saveButton;
+    }
+
+    /**
+     * Registers a callback that fires whenever the URL text or method changes.
+     */
+    public void addChangeListener(Runnable listener) {
+        urlField.addKeyListener(
+            new KeyAdapter() {
+                @Override
+                public void keyPressed(KeyEvent e) {
+                    listener.run();
+                }
+            }
+        );
+        methodDropdown.addActionListener(e -> listener.run());
     }
 }

@@ -61,34 +61,11 @@ public class RequestPanel {
     }
 
     /**
-     * Sets up key listeners on all input fields to enable save button on any key press
+     * Sets up change listeners on all sub-panels to track dirty state.
+     * Each sub-panel owns its own listener wiring; RequestPanel only registers callbacks.
      */
     private void setupChangeListeners() {
-        // Create a simple key listener that enables the save button and stores changes (only if not populating)
-        java.awt.event.KeyListener enableSaveListener =
-            new java.awt.event.KeyAdapter() {
-                @Override
-                public void keyPressed(java.awt.event.KeyEvent e) {
-                    if (!isPopulating) {
-                        saveCurrentStateToMemory();
-                    }
-                }
-            };
-
-        // URL field
-        topPanel.getUrlField().addKeyListener(enableSaveListener);
-
-        // Method dropdown - use action listener instead
-        methodDropdown.addActionListener(e -> {
-            if (!isPopulating) {
-                saveCurrentStateToMemory();
-            }
-        });
-
-        // Body text area
-        bodyTextArea.addKeyListener(enableSaveListener);
-        // Headers table - use TableModelListener to catch all edits (including double-click edits)
-        headersPanel.getTableModel().addTableModelListener(e -> {
+        Runnable markDirty = () -> {
             if (!isPopulating) {
                 try {
                     saveCurrentStateToMemory();
@@ -96,32 +73,24 @@ public class RequestPanel {
                     System.out.println(ex.getMessage());
                 }
             }
-        });
-        headersPanel.getTable().addKeyListener(enableSaveListener);
+        };
 
-        // Params table - use TableModelListener to catch all edits (including double-click edits)
-        paramsPanel.getTableModel().addTableModelListener(e -> {
-            if (!isPopulating) {
-                saveCurrentStateToMemory();
+        // Sub-panels — each handles its own internal listener wiring
+        topPanel.addChangeListener(markDirty);
+        headersPanel.addChangeListener(markDirty);
+        paramsPanel.addChangeListener(markDirty);
+        authPanel.addChangeListener(markDirty);
+        scriptsPanel.addChangeListener(markDirty);
+
+        // Body text area is owned directly by RequestPanel
+        bodyTextArea.addKeyListener(
+            new java.awt.event.KeyAdapter() {
+                @Override
+                public void keyPressed(java.awt.event.KeyEvent e) {
+                    markDirty.run();
+                }
             }
-        });
-        paramsPanel.getTable().addKeyListener(enableSaveListener);
-
-        // Auth panel fields
-        authPanel.setKeyListener(enableSaveListener);
-
-        // Auth type combo box - use action listener
-        authPanel.getAuthTypeComboBox().addActionListener(e -> {
-            if (!isPopulating) {
-                saveCurrentStateToMemory();
-            }
-        });
-
-        // Script text areas
-        if (scriptsPanel != null) {
-            scriptsPanel.getPreRequestArea().addKeyListener(enableSaveListener);
-            scriptsPanel.getTestArea().addKeyListener(enableSaveListener);
-        }
+        );
     }
 
     /**
