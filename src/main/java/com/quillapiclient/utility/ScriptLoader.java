@@ -1,4 +1,4 @@
-package com.quillapiclient.components.loader;
+package com.quillapiclient.utility;
 
 import com.quillapiclient.components.ScriptsPanel;
 import com.quillapiclient.db.CollectionDao;

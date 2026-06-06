@@ -1,7 +1,7 @@
 package com.quillapiclient.components;
 
-import com.quillapiclient.components.loader.ScriptLoader;
 import com.quillapiclient.objects.*;
+import com.quillapiclient.utility.ScriptLoader;
 import java.awt.*;
 import java.awt.Font;
 import java.util.HashMap;

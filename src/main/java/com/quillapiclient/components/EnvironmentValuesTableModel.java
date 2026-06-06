@@ -1,4 +1,4 @@
-package com.quillapiclient.components.table;
+package com.quillapiclient.components;
 
 import com.quillapiclient.db.EnvironmentDao;
 import com.quillapiclient.objects.PostmanEnvironmentValue;

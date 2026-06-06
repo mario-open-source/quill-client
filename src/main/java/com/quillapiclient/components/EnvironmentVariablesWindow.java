@@ -1,6 +1,5 @@
 package com.quillapiclient.components;
 
-import com.quillapiclient.components.table.EnvironmentValuesTableModel;
 import com.quillapiclient.db.EnvironmentDao;
 import com.quillapiclient.objects.PostmanEnvironmentValue;
 import com.quillapiclient.utility.TableEditUtil;
