@@ -3,6 +3,7 @@ package com.quillapiclient.components;
 import com.quillapiclient.utility.AppColorTheme;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Font;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -53,9 +54,17 @@ public class ResponsePanel {
         responseArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JSON);
         responseArea.setCodeFoldingEnabled(true);
         responseArea.setAntiAliasingEnabled(true);
-        responseArea.setFont(
-            new java.awt.Font("Monospaced", java.awt.Font.PLAIN, 14)
-        );
+        // Inherit size from FlatLaf default, but use monospaced for code
+        Font defaultFont = javax.swing.UIManager.getFont("TextArea.font");
+        if (defaultFont != null) {
+            responseArea.setFont(
+                new Font(
+                    defaultFont.getFontName(),
+                    defaultFont.getStyle(),
+                    defaultFont.getSize()
+                )
+            );
+        }
         responseArea.setEditable(false);
         responseArea.setHighlightCurrentLine(false);
         responseArea.setTabSize(2);

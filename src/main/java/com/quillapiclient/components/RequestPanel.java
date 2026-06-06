@@ -2,6 +2,7 @@ package com.quillapiclient.components;
 
 import com.quillapiclient.objects.*;
 import java.awt.*;
+import java.awt.Font;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -142,9 +143,17 @@ public class RequestPanel {
         bodyTextArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JSON);
         bodyTextArea.setCodeFoldingEnabled(true);
         bodyTextArea.setAntiAliasingEnabled(true);
-        bodyTextArea.setFont(
-            new java.awt.Font("Monospaced", java.awt.Font.PLAIN, 14)
-        );
+        // Inherit size from FlatLaf default, but use monospaced for code
+        Font defaultFont = javax.swing.UIManager.getFont("TextArea.font");
+        if (defaultFont != null) {
+            bodyTextArea.setFont(
+                new Font(
+                    defaultFont.getFontName(),
+                    defaultFont.getStyle(),
+                    defaultFont.getSize()
+                )
+            );
+        }
         bodyTextArea.setTabSize(2);
         bodyTextArea.setTabsEmulated(true);
         // Apply dark theme
