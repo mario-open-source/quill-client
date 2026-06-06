@@ -61,6 +61,9 @@
                                     <mainClass
                                     >com.quillapiclient.Main</mainClass>
                                 </transformer>
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"
+                                />
                             </transformers>
                         </configuration>
                     </execution>
@@ -99,6 +102,14 @@
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
             <version>3.49.1.0</version>
+        </dependency>
+
+        <!-- RSyntaxTextArea for JSON syntax highlighting -->
+        <!-- https://mvnrepository.com/artifact/com.fifesoft/rsyntaxtextarea -->
+        <dependency>
+            <groupId>com.fifesoft</groupId>
+            <artifactId>rsyntaxtextarea</artifactId>
+            <version>3.5.2</version>
         </dependency>
 
         <!-- Source: https://mvnrepository.com/artifact/org.graalvm.polyglot/polyglot -->

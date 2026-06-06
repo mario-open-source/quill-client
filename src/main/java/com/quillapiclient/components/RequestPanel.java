@@ -7,6 +7,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.swing.*;
+import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
+import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
+import org.fife.ui.rsyntaxtextarea.Theme;
 
 public class RequestPanel {
 
@@ -15,7 +18,7 @@ public class RequestPanel {
     private JComboBox<String> methodDropdown;
     private JButton sendButton;
     private JButton saveButton;
-    private JTextArea bodyTextArea;
+    private RSyntaxTextArea bodyTextArea;
     private String headersTextArea;
     private JTextArea paramsTextArea;
     private AuthPanel authPanel;
@@ -133,7 +136,35 @@ public class RequestPanel {
 
     private JTabbedPane createRequestTabs() {
         JTabbedPane tabs = new JTabbedPane();
-        bodyTextArea = new JTextArea();
+
+        // Body text area with JSON syntax highlighting
+        bodyTextArea = new RSyntaxTextArea();
+        bodyTextArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JSON);
+        bodyTextArea.setCodeFoldingEnabled(true);
+        bodyTextArea.setAntiAliasingEnabled(true);
+        bodyTextArea.setFont(
+            new java.awt.Font("Monospaced", java.awt.Font.PLAIN, 14)
+        );
+        bodyTextArea.setTabSize(2);
+        bodyTextArea.setTabsEmulated(true);
+        // Apply dark theme
+        try {
+            Theme theme = Theme.load(
+                getClass().getResourceAsStream(
+                    "/org/fifesoft/rsyntaxtextarea/themes/dark.xml"
+                )
+            );
+            theme.apply(bodyTextArea);
+        } catch (Exception e) {
+            // Fallback: manual dark styling
+            bodyTextArea.setBackground(new java.awt.Color(25, 25, 25));
+            bodyTextArea.setForeground(new java.awt.Color(220, 220, 220));
+            bodyTextArea.setCaretColor(new java.awt.Color(220, 220, 220));
+            bodyTextArea.setCurrentLineHighlightColor(
+                new java.awt.Color(35, 35, 35)
+            );
+        }
+
         authPanel = new AuthPanel();
         paramsPanel = new ParamsPanel();
         headersPanel = new HeadersPanel();
