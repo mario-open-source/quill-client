@@ -8,6 +8,11 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
 
+/**
+ * Authorization panel with combo-box-driven CardLayout.
+ * All auth-type sub-panels are built once and shown/hidden via the layout,
+ * eliminating the fragile {@code removeAll()} + rebuild pattern.
+ */
 public class AuthPanel {
 
     private JPanel authPanel;
@@ -15,8 +20,11 @@ public class AuthPanel {
     private JTextField userField;
     private JTextField passField;
     private JTextField tokenField;
+    private JTextField jwtTokenField;
+    private CardLayout cardLayout;
+    private JPanel cardsPanel;
 
-    private String[] authTypes = {
+    private final String[] authTypes = {
         "No auth",
         "Basic auth",
         "Bearer token",
@@ -30,201 +38,194 @@ public class AuthPanel {
     public AuthPanel() {
         authPanel = new JPanel(new BorderLayout());
 
-        // Auth component
-        authTypeComboBox = new JComboBox<>(authTypes);
-        authPanel.add(authTypeComboBox, BorderLayout.NORTH);
-
-        // Add action listener to update UI when selection changes
-        authTypeComboBox.addActionListener(e -> updateAuthPanel());
-
-        // Initialize fields
+        // Initialize fields (per-card fields to avoid reparenting issues)
         userField = new JTextField();
         userField.setToolTipText("Username");
         passField = new JTextField();
         passField.setToolTipText("Password");
         tokenField = new JTextField();
-        tokenField.setToolTipText("Token");
+        tokenField.setToolTipText("Bearer Token");
+        jwtTokenField = new JTextField();
+        jwtTokenField.setToolTipText("JWT Token");
 
-        updateAuthPanel();
-    }
+        // Combo box at top
+        authTypeComboBox = new JComboBox<>(authTypes);
 
-    private void updateAuthPanel() {
-        if (authTypeComboBox == null || authPanel == null) {
-            return;
-        }
+        // Build cards once
+        cardLayout = new CardLayout();
+        cardsPanel = new JPanel(cardLayout);
+        cardsPanel.setOpaque(false);
+        cardsPanel.add(createNoAuthCard(), NO_AUTH_TEXT);
+        cardsPanel.add(createBasicAuthCard(), BASIC_AUTH_TEXT);
+        cardsPanel.add(createBearerCard(), BEARER_TOKEN_TEXT);
+        cardsPanel.add(createJwtBearerCard(), JWT_BEARER_TEXT);
 
-        // Remove all components
-        authPanel.removeAll();
-
-        // Outer wrapper with padding so content doesn't touch edges of its parent tab
+        // Outer wrapper with padding
         JPanel outerWrapper = new JPanel(new BorderLayout());
         outerWrapper.setOpaque(false);
-        outerWrapper.setBorder(
-            javax.swing.BorderFactory.createEmptyBorder(26, 26, 26, 26)
-        );
+        outerWrapper.setBorder(BorderFactory.createEmptyBorder(26, 26, 26, 26));
 
-        // Wrapper that ensures both combo box and fields share the same width
+        // Stack: combo on top, cards below (same width constraint)
         JPanel contentPanel = new JPanel(new GridBagLayout());
         contentPanel.setOpaque(false);
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.weightx = 1.0;
         gbc.gridx = 0;
-        gbc.insets = new java.awt.Insets(0, 0, 0, 0);
+        gbc.insets = new Insets(0, 0, 0, 0);
 
-        // Combo box at top — stretches full width
         gbc.gridy = 0;
         contentPanel.add(authTypeComboBox, gbc);
 
-        // Fields panel below (with spacing)
-        JPanel fieldsPanel = new JPanel();
-        fieldsPanel.setOpaque(false);
-        fieldsPanel.setLayout(new BoxLayout(fieldsPanel, BoxLayout.Y_AXIS));
-        fieldsPanel.setBorder(
-            javax.swing.BorderFactory.createEmptyBorder(20, 0, 0, 0)
-        );
-
-        String selectedAuth = (String) authTypeComboBox.getSelectedItem();
-
-        switch (selectedAuth) {
-            case NO_AUTH_TEXT:
-                JLabel noAuthLabel = new JLabel("No authentication required");
-                noAuthLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
-                fieldsPanel.add(noAuthLabel);
-                break;
-            case BASIC_AUTH_TEXT:
-                JLabel userLabel = new JLabel("Username:");
-                userLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
-                userField.setAlignmentX(JTextField.LEFT_ALIGNMENT);
-                userField.setMaximumSize(
-                    new Dimension(
-                        Integer.MAX_VALUE,
-                        userField.getPreferredSize().height
-                    )
-                );
-                fieldsPanel.add(userLabel);
-                fieldsPanel.add(Box.createVerticalStrut(5));
-                fieldsPanel.add(userField);
-                fieldsPanel.add(Box.createVerticalStrut(10));
-
-                JLabel passLabel = new JLabel("Password:");
-                passLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
-                passField.setAlignmentX(JTextField.LEFT_ALIGNMENT);
-                passField.setMaximumSize(
-                    new Dimension(
-                        Integer.MAX_VALUE,
-                        passField.getPreferredSize().height
-                    )
-                );
-                fieldsPanel.add(passLabel);
-                fieldsPanel.add(Box.createVerticalStrut(5));
-                fieldsPanel.add(passField);
-                break;
-            case BEARER_TOKEN_TEXT:
-                tokenField.setToolTipText("Bearer Token");
-                JLabel tokenLabel = new JLabel("Token:");
-                tokenLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
-                tokenField.setAlignmentX(JTextField.LEFT_ALIGNMENT);
-                tokenField.setMaximumSize(
-                    new Dimension(
-                        Integer.MAX_VALUE,
-                        tokenField.getPreferredSize().height
-                    )
-                );
-                fieldsPanel.add(tokenLabel);
-                fieldsPanel.add(Box.createVerticalStrut(5));
-                fieldsPanel.add(tokenField);
-                break;
-            case JWT_BEARER_TEXT:
-                tokenField.setToolTipText("JWT Token");
-                JLabel jwtLabel = new JLabel("JWT Token:");
-                jwtLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
-                tokenField.setAlignmentX(JTextField.LEFT_ALIGNMENT);
-                tokenField.setMaximumSize(
-                    new Dimension(
-                        Integer.MAX_VALUE,
-                        tokenField.getPreferredSize().height
-                    )
-                );
-                fieldsPanel.add(jwtLabel);
-                fieldsPanel.add(Box.createVerticalStrut(5));
-                fieldsPanel.add(tokenField);
-                break;
-        }
-
-        // Add fields panel under the combo box, sharing the same width
         gbc.gridy = 1;
-        contentPanel.add(fieldsPanel, gbc);
+        gbc.insets = new Insets(20, 0, 0, 0);
+        contentPanel.add(cardsPanel, gbc);
 
         outerWrapper.add(contentPanel, BorderLayout.NORTH);
         authPanel.add(outerWrapper, BorderLayout.CENTER);
-        authPanel.revalidate();
-        authPanel.repaint();
+
+        // Wire combo box to switch cards on selection change
+        authTypeComboBox.addActionListener(e ->
+            showCardForType(currentCardKey())
+        );
+
+        // Show the initial card
+        showCardForType(NO_AUTH_TEXT);
     }
 
+    // ---- card builders ----
+
+    private JPanel createNoAuthCard() {
+        JPanel card = new JPanel();
+        card.setOpaque(false);
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        JLabel label = new JLabel("No authentication required");
+        label.setAlignmentX(JLabel.LEFT_ALIGNMENT);
+        card.add(label);
+        return card;
+    }
+
+    private JPanel createBasicAuthCard() {
+        JPanel card = new JPanel();
+        card.setOpaque(false);
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+
+        JLabel userLabel = new JLabel("Username:");
+        userLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
+        configureField(userField);
+        card.add(userLabel);
+        card.add(Box.createVerticalStrut(5));
+        card.add(userField);
+
+        JLabel passLabel = new JLabel("Password:");
+        passLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
+        configureField(passField);
+        card.add(Box.createVerticalStrut(10));
+        card.add(passLabel);
+        card.add(Box.createVerticalStrut(5));
+        card.add(passField);
+
+        return card;
+    }
+
+    private JPanel createBearerCard() {
+        return buildTokenCard("Token:", tokenField);
+    }
+
+    private JPanel createJwtBearerCard() {
+        return buildTokenCard("JWT Token:", jwtTokenField);
+    }
+
+    private JPanel buildTokenCard(String labelText, JTextField field) {
+        JPanel card = new JPanel();
+        card.setOpaque(false);
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+
+        JLabel label = new JLabel(labelText);
+        label.setAlignmentX(JLabel.LEFT_ALIGNMENT);
+        configureField(field);
+        card.add(label);
+        card.add(Box.createVerticalStrut(5));
+        card.add(field);
+
+        return card;
+    }
+
+    private void configureField(JTextField field) {
+        field.setAlignmentX(JTextField.LEFT_ALIGNMENT);
+        field.setMaximumSize(
+            new Dimension(Integer.MAX_VALUE, field.getPreferredSize().height)
+        );
+    }
+
+    // ---- card switching ----
+
+    /**
+     * Shows the card for the given auth type string.
+     */
+    private void showCardForType(String authType) {
+        cardLayout.show(cardsPanel, authType);
+    }
+
+    /**
+     * Returns the card key that matches the currently selected combo item.
+     */
+    private String currentCardKey() {
+        String selected = (String) authTypeComboBox.getSelectedItem();
+        if (selected == null) return NO_AUTH_TEXT;
+        return selected;
+    }
+
+    // ---- public API ----
+
     public void populateFromRequest(Request request) {
-        if (request == null) {
-            // No auth, clear all fields
+        if (request == null || request.getAuth() == null) {
             userField.setText("");
             passField.setText("");
             tokenField.setText("");
-            authTypeComboBox.setSelectedItem("No auth");
+            jwtTokenField.setText("");
+            authTypeComboBox.setSelectedItem(NO_AUTH_TEXT);
+            showCardForType(NO_AUTH_TEXT);
             return;
         }
 
-        if (request.getAuth() != null) {
-            if (request.getAuth().getBasic() != null) {
-                // Basic auth - username and password
-                if (request.getAuth().getBasic().size() > 0) {
-                    userField.setText(
-                        request.getAuth().getBasic().get(0).getValue()
-                    );
-                } else {
-                    userField.setText("");
-                }
-                if (request.getAuth().getBasic().size() > 1) {
-                    passField.setText(
-                        request.getAuth().getBasic().get(1).getValue()
-                    );
-                } else {
-                    passField.setText("");
-                }
-                tokenField.setText("");
-                // Update auth type combo box
-                authTypeComboBox.setSelectedItem("Basic auth");
-            } else if (request.getAuth().getBearer() != null) {
-                // Bearer token auth
-                if (request.getAuth().getBearer().size() > 0) {
-                    tokenField.setText(
-                        request.getAuth().getBearer().get(0).getValue()
-                    );
-                } else {
-                    tokenField.setText("");
-                }
-                userField.setText("");
-                passField.setText("");
-                // Update auth type combo box
-                authTypeComboBox.setSelectedItem("Bearer token");
+        Auth auth = request.getAuth();
+
+        if (auth.getBasic() != null) {
+            List<Credential> basic = auth.getBasic();
+            if (basic.size() > 0) {
+                userField.setText(basic.get(0).getValue());
             } else {
-                // Unknown auth type, clear all
                 userField.setText("");
-                passField.setText("");
-                tokenField.setText("");
-                authTypeComboBox.setSelectedItem("No auth");
             }
+            if (basic.size() > 1) {
+                passField.setText(basic.get(1).getValue());
+            } else {
+                passField.setText("");
+            }
+            tokenField.setText("");
+            jwtTokenField.setText("");
+            authTypeComboBox.setSelectedItem(BASIC_AUTH_TEXT);
+        } else if (auth.getBearer() != null) {
+            List<Credential> bearer = auth.getBearer();
+            String tokenValue =
+                bearer.size() > 0 ? bearer.get(0).getValue() : "";
+            tokenField.setText(tokenValue);
+            jwtTokenField.setText(tokenValue);
+            userField.setText("");
+            passField.setText("");
+            authTypeComboBox.setSelectedItem(BEARER_TOKEN_TEXT);
         } else {
-            // No auth, clear all fields
             userField.setText("");
             passField.setText("");
             tokenField.setText("");
-            authTypeComboBox.setSelectedItem("No auth");
+            jwtTokenField.setText("");
+            authTypeComboBox.setSelectedItem(NO_AUTH_TEXT);
         }
 
-        // Update the UI to reflect the new auth type selection
-        updateAuthPanel();
+        showCardForType(currentCardKey());
     }
 
-    // Getters for controller
     public String getAuthType() {
         return (String) authTypeComboBox.getSelectedItem();
     }
@@ -238,6 +239,10 @@ public class AuthPanel {
     }
 
     public String getToken() {
+        String type = getAuthType();
+        if (JWT_BEARER_TEXT.equals(type)) {
+            return jwtTokenField != null ? jwtTokenField.getText() : "";
+        }
         return tokenField != null ? tokenField.getText() : "";
     }
 
@@ -249,10 +254,6 @@ public class AuthPanel {
         return authPanel;
     }
 
-    /**
-     * Builds an Auth object from the current panel state.
-     * Returns null if no auth type is selected.
-     */
     public Auth buildAuth() {
         String authType = getAuthType();
 
@@ -265,38 +266,30 @@ public class AuthPanel {
 
         if (authType.equals(BASIC_AUTH_TEXT)) {
             List<Credential> basic = new ArrayList<>();
-
             Credential usernameCred = new Credential();
             usernameCred.setKey("username");
             usernameCred.setValue(getUsername());
             basic.add(usernameCred);
-
             Credential passwordCred = new Credential();
             passwordCred.setKey("password");
             passwordCred.setValue(getPassword());
             basic.add(passwordCred);
-
             auth.setBasic(basic);
         } else if (
             authType.equals(BEARER_TOKEN_TEXT) ||
             authType.equals(JWT_BEARER_TEXT)
         ) {
             List<Credential> bearer = new ArrayList<>();
-
             Credential tokenCred = new Credential();
             tokenCred.setKey("token");
             tokenCred.setValue(getToken());
             bearer.add(tokenCred);
-
             auth.setBearer(bearer);
         }
 
         return auth;
     }
 
-    /**
-     * Registers a callback that fires whenever any auth field or the auth type changes.
-     */
     public void addChangeListener(Runnable listener) {
         java.awt.event.KeyAdapter keyAdapter = new java.awt.event.KeyAdapter() {
             @Override
@@ -304,15 +297,10 @@ public class AuthPanel {
                 listener.run();
             }
         };
-        if (userField != null) {
-            userField.addKeyListener(keyAdapter);
-        }
-        if (passField != null) {
-            passField.addKeyListener(keyAdapter);
-        }
-        if (tokenField != null) {
-            tokenField.addKeyListener(keyAdapter);
-        }
+        userField.addKeyListener(keyAdapter);
+        passField.addKeyListener(keyAdapter);
+        tokenField.addKeyListener(keyAdapter);
+        jwtTokenField.addKeyListener(keyAdapter);
         authTypeComboBox.addActionListener(e -> listener.run());
     }
 }
