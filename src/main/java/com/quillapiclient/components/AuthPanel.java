@@ -1,7 +1,11 @@
 package com.quillapiclient.components;
 
+import com.quillapiclient.objects.Auth;
+import com.quillapiclient.objects.Credential;
 import com.quillapiclient.objects.Request;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
 import javax.swing.*;
 
 public class AuthPanel {
@@ -243,6 +247,51 @@ public class AuthPanel {
 
     public JPanel getPanel() {
         return authPanel;
+    }
+
+    /**
+     * Builds an Auth object from the current panel state.
+     * Returns null if no auth type is selected.
+     */
+    public Auth buildAuth() {
+        String authType = getAuthType();
+
+        if (authType == null || authType.equals(NO_AUTH_TEXT)) {
+            return null;
+        }
+
+        Auth auth = new Auth();
+        auth.setType(authType.toLowerCase().replace(" ", ""));
+
+        if (authType.equals(BASIC_AUTH_TEXT)) {
+            List<Credential> basic = new ArrayList<>();
+
+            Credential usernameCred = new Credential();
+            usernameCred.setKey("username");
+            usernameCred.setValue(getUsername());
+            basic.add(usernameCred);
+
+            Credential passwordCred = new Credential();
+            passwordCred.setKey("password");
+            passwordCred.setValue(getPassword());
+            basic.add(passwordCred);
+
+            auth.setBasic(basic);
+        } else if (
+            authType.equals(BEARER_TOKEN_TEXT) ||
+            authType.equals(JWT_BEARER_TEXT)
+        ) {
+            List<Credential> bearer = new ArrayList<>();
+
+            Credential tokenCred = new Credential();
+            tokenCred.setKey("token");
+            tokenCred.setValue(getToken());
+            bearer.add(tokenCred);
+
+            auth.setBearer(bearer);
+        }
+
+        return auth;
     }
 
     /**

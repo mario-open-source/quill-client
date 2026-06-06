@@ -3,7 +3,6 @@ package com.quillapiclient.components;
 import com.quillapiclient.objects.*;
 import java.awt.*;
 import java.awt.Font;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -413,54 +412,13 @@ public class RequestPanel {
             request.setHeader(headers);
         }
 
-        // Build Auth
-        Auth auth = buildAuthFromUI();
+        // Build Auth (delegated to AuthPanel)
+        Auth auth = authPanel.buildAuth();
         if (auth != null) {
             request.setAuth(auth);
         }
 
         return request;
-    }
-
-    /**
-     * Builds an Auth object from AuthPanel
-     */
-    private Auth buildAuthFromUI() {
-        String authType = authPanel.getAuthType();
-
-        if (authType == null || authType.equals("No auth")) {
-            return null;
-        }
-
-        Auth auth = new Auth();
-        auth.setType(authType.toLowerCase().replace(" ", ""));
-
-        if (authType.equals("Basic auth")) {
-            List<Credential> basic = new ArrayList<>();
-            Credential usernameCred = new Credential();
-            usernameCred.setKey("username");
-            usernameCred.setValue(authPanel.getUsername());
-            basic.add(usernameCred);
-
-            Credential passwordCred = new Credential();
-            passwordCred.setKey("password");
-            passwordCred.setValue(authPanel.getPassword());
-            basic.add(passwordCred);
-
-            auth.setBasic(basic);
-        } else if (
-            authType.equals("Bearer token") || authType.equals("Jwt bearer")
-        ) {
-            List<Credential> bearer = new ArrayList<>();
-            Credential tokenCred = new Credential();
-            tokenCred.setKey("token");
-            tokenCred.setValue(authPanel.getToken());
-            bearer.add(tokenCred);
-
-            auth.setBearer(bearer);
-        }
-
-        return auth;
     }
 
     /**
