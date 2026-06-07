@@ -54,12 +54,6 @@ public class ResponseFormatter {
                 String key = entry.getKey();
                 String values = String.join(", ", entry.getValue());
 
-                // Categorize common headers for better readability
-                String category = getHeaderCategory(key);
-                if (!category.isEmpty()) {
-                    responseText.append(category).append(" ");
-                }
-
                 responseText
                     .append(key)
                     .append(": ")
@@ -114,28 +108,6 @@ public class ResponseFormatter {
      */
     public static String formatResponse(ApiResponse response) {
         return formatResponse(response, "Response");
-    }
-
-    /**
-     * Gets the category label for a header key.
-     *
-     * @param key The header key
-     * @return Category label (e.g., "CONTENT-TYPE:", "AUTHORIZATION:", etc.) or empty string
-     */
-    private static String getHeaderCategory(String key) {
-        String lowerKey = key.toLowerCase();
-        if (lowerKey.contains("content-type")) {
-            return "CONTENT-TYPE:";
-        } else if (
-            lowerKey.contains("authorization") || lowerKey.contains("token")
-        ) {
-            return "AUTHORIZATION:";
-        } else if (lowerKey.contains("cache")) {
-            return "CACHE:";
-        } else if (lowerKey.contains("cookie")) {
-            return "COOKIE:";
-        }
-        return "";
     }
 
     /**
