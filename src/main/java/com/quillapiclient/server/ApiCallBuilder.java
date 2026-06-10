@@ -1,6 +1,5 @@
 package com.quillapiclient.server;
 
-import com.quillapiclient.db.CollectionDao;
 import com.quillapiclient.objects.AuthType;
 import com.quillapiclient.utility.RequestVariableResolver;
 import java.io.IOException;
@@ -414,21 +413,8 @@ public class ApiCallBuilder {
             .body(bodyText)
             .queryParams(queryParamsText);
 
-        // Load collection/item variables from database and merge optional runtime variables.
-        Map<String, String> variables = new HashMap<>();
-        if (itemId > 0) {
-            int collectionId = CollectionDao.getCollectionIdByItemId(itemId);
-            variables = CollectionDao.getAllVariablesForRequest(
-                collectionId,
-                itemId
-            );
-        }
-        variables = RequestVariableResolver.mergeVariables(
-            variables,
-            runtimeVariables
-        );
-        if (!variables.isEmpty()) {
-            builder.variables(variables);
+        if (!runtimeVariables.isEmpty()) {
+            builder.variables(runtimeVariables);
         }
 
         // Set authentication

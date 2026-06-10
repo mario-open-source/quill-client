@@ -8,8 +8,6 @@ import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.utility.ResponseFormatter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -41,7 +39,6 @@ public class ApiController {
         String token,
         String paramsText,
         int itemId,
-        Map<String, String> runtimeVariables,
         int environmentId
     ) {
         if (url.isEmpty()) {
@@ -49,10 +46,6 @@ public class ApiController {
             responsePanel.resetStatusDurationSize();
             return;
         }
-
-        Map<String, String> requestVariables = (runtimeVariables != null)
-            ? new HashMap<>(runtimeVariables)
-            : new HashMap<>();
 
         // Show loading message
         String loadingMessage = createLoadingMessage(
@@ -69,7 +62,7 @@ public class ApiController {
         int collectionId =
             itemId > 0 ? CollectionDao.getCollectionIdByItemId(itemId) : -1;
 
-        // Build script orchestrator (loads pre/post scripts + variable scopes)
+        // Build script orchestrator (loads pre/post scripts + all variable scopes)
         ScriptOrchestrator orchestrator = new ScriptOrchestrator(
             collectionId,
             itemId > 0 ? itemId : null,
@@ -83,12 +76,10 @@ public class ApiController {
         executorService.submit(() -> {
             long startTime = System.currentTimeMillis();
 
-            // Phase 2: snapshot variables NOW (inside executor, after any pending scripts)
-            Map<String, String> mergedVars = orchestrator.getMergedVariables();
-            if (requestVariables != null && !requestVariables.isEmpty()) {
-                requestVariables.putAll(mergedVars);
-                mergedVars = requestVariables;
-            }
+            // Single source of truth: merged variables from all scopes
+            // (globals → collection → environment → item, narrowest wins)
+            java.util.Map<String, String> mergedVars =
+                orchestrator.getMergedVariables();
 
             System.out.println(
                 "[ApiController] mergedVars keys: " + mergedVars.keySet()
@@ -105,7 +96,7 @@ public class ApiController {
                     password,
                     token,
                     paramsText,
-                    -1, // don't reload DB vars — use only mergedVars
+                    -1, // don't reload DB vars — orchestrator already loaded everything
                     mergedVars
                 ).execute();
 

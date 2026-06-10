@@ -46,7 +46,11 @@ public class ScriptOrchestrator {
         this.itemId = itemId;
         this.environmentId = environmentId;
         this.logs = new ArrayList<>();
-        this.scriptContext = new ScriptContext(collectionId, environmentId);
+        this.scriptContext = new ScriptContext(
+            collectionId,
+            itemId != null ? itemId : 0,
+            environmentId
+        );
     }
 
     // ---------------------------------------------------------------
@@ -135,6 +139,7 @@ public class ScriptOrchestrator {
             "collectionVariables",
             scriptContext.getCollectionVariables()
         );
+        pmProps.put("variables", scriptContext.getItemVariables());
         pmProps.put("globals", scriptContext.getGlobals());
         pmProps.put("request", scriptContext.getRequest());
         pmProps.put("response", scriptContext.getResponse());

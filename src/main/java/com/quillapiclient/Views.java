@@ -250,6 +250,8 @@ public class Views {
         String password = requestPanel.getAuthPanel().getPassword();
         String token = requestPanel.getAuthPanel().getToken();
 
+        int environmentId = environmentManager.getActiveEnvironmentId();
+
         // Execute the API call through the controller, passing the current item ID
         apiController.executeApiCall(
             url,
@@ -262,8 +264,7 @@ public class Views {
             token,
             paramsText,
             currentItemId,
-            environmentManager.getActiveEnvironmentVariables(),
-            environmentManager.getActiveEnvironmentId()
+            environmentId
         );
     }
 

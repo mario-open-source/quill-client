@@ -30,6 +30,7 @@ public class ScriptContext {
     // --- variable scopes (visible to scripts) ---
     private final ScriptableVariableMap environment;
     private final ScriptableVariableMap collectionVariables;
+    private final ScriptableVariableMap itemVariables;
     private final ScriptableVariableMap globals;
 
     // --- future stubs ---
@@ -38,6 +39,7 @@ public class ScriptContext {
 
     // --- context ids needed for persistence ---
     private final int collectionId;
+    private final int itemId;
     private final int environmentId;
 
     // Shared globals survive across requests within the same app session
@@ -52,11 +54,12 @@ public class ScriptContext {
     }
 
     /**
-     * Full constructor — loads environment and collection variables from DB
+     * Full constructor — loads environment, collection, and item variables from DB
      * and seeds the scriptable maps.
      */
-    public ScriptContext(int collectionId, int environmentId) {
+    public ScriptContext(int collectionId, int itemId, int environmentId) {
         this.collectionId = collectionId;
+        this.itemId = itemId;
         this.environmentId = environmentId;
 
         this.environment = new ScriptableVariableMap(
@@ -64,6 +67,9 @@ public class ScriptContext {
         );
         this.collectionVariables = new ScriptableVariableMap(
             VariableScopeDao.loadCollection(collectionId)
+        );
+        this.itemVariables = new ScriptableVariableMap(
+            VariableScopeDao.loadItem(itemId)
         );
         this.globals = SHARED_GLOBALS;
         System.out.println(
@@ -88,6 +94,15 @@ public class ScriptContext {
     @HostAccess.Export
     public ScriptableVariableMap getCollectionVariables() {
         return collectionVariables;
+    }
+
+    // ---------------------------------------------------------------
+    //  pm.variables  (item-level / request-level variables)
+    // ---------------------------------------------------------------
+
+    @HostAccess.Export
+    public ScriptableVariableMap getItemVariables() {
+        return itemVariables;
     }
 
     // ---------------------------------------------------------------
@@ -132,6 +147,7 @@ public class ScriptContext {
         return (
             environment.isDirty() ||
             collectionVariables.isDirty() ||
+            itemVariables.isDirty() ||
             globals.isDirty()
         );
     }
@@ -149,22 +165,19 @@ public class ScriptContext {
                 collectionVariables.snapshot()
             );
         }
+        if (itemVariables.isDirty() && itemId > 0) {
+            VariableScopeDao.persistItem(itemId, itemVariables.snapshot());
+        }
         // globals are intentionally not persisted
     }
 
     /** Merges all scopes into a flat map for {{variable}} resolution. */
     java.util.Map<String, String> mergedForResolution() {
         java.util.Map<String, String> merged = new java.util.LinkedHashMap<>();
+        merged.putAll(globals.asLiveMap());
         merged.putAll(collectionVariables.asLiveMap());
         merged.putAll(environment.asLiveMap());
-        java.util.Map<String, String> globalsMap = globals.asLiveMap();
-        System.out.println(
-            "[ScriptContext] globals size: " +
-                globalsMap.size() +
-                " keys: " +
-                globalsMap.keySet()
-        );
-        merged.putAll(globalsMap);
+        merged.putAll(itemVariables.asLiveMap());
         System.out.println(
             "[ScriptContext] merged size: " +
                 merged.size() +
