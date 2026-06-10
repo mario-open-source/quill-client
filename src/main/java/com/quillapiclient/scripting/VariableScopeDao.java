@@ -9,11 +9,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Thin persistence layer for the three variable scopes.
+ * Thin persistence layer for the four variable scopes.
  *
  * <p>Reuses the existing schema:</p>
  * <ul>
- *   <li>{@code variables} table   → collection variables</li>
+ *   <li>{@code variables} table   → collection / item variables</li>
  *   <li>{@code environment_values} table → environment variables</li>
  *   <li>Globals are kept in-memory only.</li>
  * </ul>
@@ -31,26 +31,59 @@ public final class VariableScopeDao {
 
     public static Map<String, String> loadEnvironment(int environmentId) {
         if (environmentId <= 0) return new LinkedHashMap<>();
-        return loadKeyValues(
-            "SELECT variable_key, variable_value FROM environment_values WHERE environment_id = ? AND enabled = 1 ORDER BY sort_order",
-            environmentId
-        );
+        try {
+            return loadKeyValues(
+                "SELECT variable_key, variable_value FROM environment_values WHERE environment_id = ? AND enabled = 1 ORDER BY sort_order",
+                environmentId
+            );
+        } catch (Exception e) {
+            System.err.println(
+                "[VariableScopeDao] Error loading environment " +
+                    environmentId +
+                    ": " +
+                    e.getMessage()
+            );
+            e.printStackTrace();
+            return new LinkedHashMap<>();
+        }
     }
 
     public static Map<String, String> loadCollection(int collectionId) {
         if (collectionId <= 0) return new LinkedHashMap<>();
-        return loadKeyValues(
-            "SELECT variable_key, variable_value FROM variables WHERE collection_id = ? AND item_id IS NULL",
-            collectionId
-        );
+        try {
+            return loadKeyValues(
+                "SELECT variable_key, variable_value FROM variables WHERE collection_id = ? AND item_id IS NULL",
+                collectionId
+            );
+        } catch (Exception e) {
+            System.err.println(
+                "[VariableScopeDao] Error loading collection " +
+                    collectionId +
+                    ": " +
+                    e.getMessage()
+            );
+            e.printStackTrace();
+            return new LinkedHashMap<>();
+        }
     }
 
     public static Map<String, String> loadItem(int itemId) {
         if (itemId <= 0) return new LinkedHashMap<>();
-        return loadKeyValues(
-            "SELECT variable_key, variable_value FROM variables WHERE item_id = ?",
-            itemId
-        );
+        try {
+            return loadKeyValues(
+                "SELECT variable_key, variable_value FROM variables WHERE item_id = ?",
+                itemId
+            );
+        } catch (Exception e) {
+            System.err.println(
+                "[VariableScopeDao] Error loading item " +
+                    itemId +
+                    ": " +
+                    e.getMessage()
+            );
+            e.printStackTrace();
+            return new LinkedHashMap<>();
+        }
     }
 
     // ---------------------------------------------------------------
@@ -61,57 +94,85 @@ public final class VariableScopeDao {
         int environmentId,
         Map<String, String> vars
     ) {
-        persistKeyValues(
-            "environment_values",
-            "environment_id",
-            environmentId,
-            vars,
-            "",
-            0 // sort_order starts at 0
-        );
+        if (environmentId <= 0 || vars == null) return;
+        try {
+            persistKeyValues(
+                "environment_values",
+                "environment_id",
+                environmentId,
+                vars,
+                "",
+                0
+            );
+        } catch (Exception e) {
+            System.err.println(
+                "[VariableScopeDao] Error persisting environment " +
+                    environmentId +
+                    ": " +
+                    e.getMessage()
+            );
+            e.printStackTrace();
+        }
     }
 
     public static void persistCollection(
         int collectionId,
         Map<String, String> vars
     ) {
-        persistKeyValues(
-            "variables",
-            "collection_id",
-            collectionId,
-            vars,
-            "AND item_id IS NULL",
-            0
-        );
+        if (collectionId <= 0 || vars == null) return;
+        try {
+            persistKeyValues(
+                "variables",
+                "collection_id",
+                collectionId,
+                vars,
+                "AND item_id IS NULL",
+                0
+            );
+        } catch (Exception e) {
+            System.err.println(
+                "[VariableScopeDao] Error persisting collection " +
+                    collectionId +
+                    ": " +
+                    e.getMessage()
+            );
+            e.printStackTrace();
+        }
     }
 
     public static void persistItem(int itemId, Map<String, String> vars) {
-        persistKeyValues("variables", "item_id", itemId, vars, "", 0);
+        if (itemId <= 0 || vars == null) return;
+        try {
+            persistKeyValues("variables", "item_id", itemId, vars, "", 0);
+        } catch (Exception e) {
+            System.err.println(
+                "[VariableScopeDao] Error persisting item " +
+                    itemId +
+                    ": " +
+                    e.getMessage()
+            );
+            e.printStackTrace();
+        }
     }
 
     // ---------------------------------------------------------------
     //  helpers
     // ---------------------------------------------------------------
 
-    private static Map<String, String> loadKeyValues(
-        String sql,
-        int foreignId
-    ) {
+    private static Map<String, String> loadKeyValues(String sql, int foreignId)
+        throws SQLException {
         Map<String, String> map = new LinkedHashMap<>();
         Connection conn = LiteConnection.getConnection();
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, foreignId);
-            ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                map.put(
-                    rs.getString("variable_key"),
-                    rs.getString("variable_value")
-                );
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    map.put(
+                        rs.getString("variable_key"),
+                        rs.getString("variable_value")
+                    );
+                }
             }
-        } catch (SQLException e) {
-            System.err.println(
-                "VariableScopeDao load error: " + e.getMessage()
-            );
         }
         return map;
     }
@@ -123,7 +184,7 @@ public final class VariableScopeDao {
         Map<String, String> vars,
         String extraWhere,
         int sortOrderStart
-    ) {
+    ) throws SQLException {
         Connection conn = LiteConnection.getConnection();
         try {
             conn.setAutoCommit(false);
@@ -167,14 +228,16 @@ public final class VariableScopeDao {
         } catch (SQLException e) {
             try {
                 conn.rollback();
-            } catch (SQLException ignored) {}
-            System.err.println(
-                "VariableScopeDao persist error: " + e.getMessage()
-            );
+            } catch (SQLException ignored) {
+                // rollback failure is non-recoverable
+            }
+            throw e;
         } finally {
             try {
                 conn.setAutoCommit(true);
-            } catch (SQLException ignored) {}
+            } catch (SQLException ignored) {
+                // best-effort reset
+            }
         }
     }
 }
