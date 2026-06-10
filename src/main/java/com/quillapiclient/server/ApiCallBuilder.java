@@ -394,54 +394,6 @@ public class ApiCallBuilder {
         return new ApiCallBuilder();
     }
 
-    /**
-     * Convenience method to build a request from UI values
-     *
-     * Example usage:
-     * <pre>
-     * ApiResponse response = ApiCallBuilder.fromUI(
-     *     urlField.getText(),
-     *     methodDropdown.getSelectedItem().toString(),
-     *     headersTextArea.getText(),
-     *     bodyTextArea.getText(),
-     *     authTypeComboBox.getSelectedItem().toString(),
-     *     userField.getText(),
-     *     passField.getText(),
-     *     tokenField.getText(),
-     *     paramsTextArea.getText(),
-     *     itemId
-     * ).execute();
-     * </pre>
-     *
-     * @param itemId The item ID to retrieve variables for (use -1 if not available)
-     */
-    public static ApiCallBuilder fromUI(
-        String url,
-        String method,
-        String headersText,
-        String bodyText,
-        String authType,
-        String username,
-        String password,
-        String token,
-        String queryParamsText,
-        int itemId
-    ) {
-        return fromUI(
-            url,
-            method,
-            headersText,
-            bodyText,
-            authType,
-            username,
-            password,
-            token,
-            queryParamsText,
-            itemId,
-            null
-        );
-    }
-
     public static ApiCallBuilder fromUI(
         String url,
         String method,
