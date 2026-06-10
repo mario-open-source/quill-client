@@ -1,6 +1,5 @@
-package com.quillapiclient.scripting;
+package com.quillapiclient.db;
 
-import com.quillapiclient.db.LiteConnection;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;

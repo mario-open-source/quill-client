@@ -1,6 +1,6 @@
 package com.quillapiclient.scripting;
 
-import com.quillapiclient.db.CollectionDao;
+import com.quillapiclient.db.VariableScopeDao;
 import com.quillapiclient.server.ApiResponse;
 import java.util.Map;
 import org.graalvm.polyglot.HostAccess;
