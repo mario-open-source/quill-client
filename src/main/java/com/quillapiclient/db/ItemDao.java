@@ -58,7 +58,12 @@ public class ItemDao {
 
         // Save item-level variables
         if (item.getVariable() != null) {
-            CollectionDao.saveVariables(conn, collectionId, itemId, item.getVariable());
+            VariableDao.saveVariables(
+                conn,
+                collectionId,
+                itemId,
+                item.getVariable()
+            );
         }
 
         // Save item-level events (pre-request / test scripts)
