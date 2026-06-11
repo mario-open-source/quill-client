@@ -2,7 +2,26 @@
 
 > **A high-performance API client designed for teams working with large collections of requests.**
 
-Quill Client is a fast, lightweight REST API client built with Java Swing, optimized for speed and efficiency when handling extensive API collections. Whether you're managing hundreds of endpoints or working in a team environment, Quill Client delivers the performance you need.
+Quill Client is a fast REST API client built with Java Swing, optimized for speed and efficiency when handling extensive API collections. Whether you're managing thousands of endpoints, Quill Client delivers the performance you need.
+
+The project started as an experiment to build a faster and lighter alternative to tools like Postman for working with large collections. It is especially focused on importing and navigating collections with thousands of requests while keeping memory usage reasonable.
+
+Quill Client is still in active development. The current goal is to make the core workflow solid: import collections, browse requests, edit requests, send API calls, inspect responses, and manage environments.
+
+## Why this project exists
+
+Many API clients are powerful, but they can feel heavy when working with large collections or when you only need a focused REST client.
+
+Quill Client tries to prioritize:
+
+* Fast startup and navigation
+* Local SQLite storage
+* Support for large imported collections
+* A traditional desktop UI
+* Lower memory usage than Electron-based tools
+* Simple request editing and response inspection
+
+This is not trying to replace every feature in Postman. The goal is to build a focused, fast, local-first API client and improve it over time.
 
 ## 🚀 Key Features
 
@@ -14,9 +33,9 @@ Quill Client is a fast, lightweight REST API client built with Java Swing, optim
 - **Shared HTTP Client**: Reused HttpClient instance to minimize connection overhead
 
 ### Team Collaboration
-- **Postman Collection Support**: Import and work with Postman collections seamlessly
+- **Postman Collection Support**: Import/Export and work with Postman collections seamlessly. Also has support for set/unset/get script vars.
 - **Hierarchical Organization**: Nested folders and requests for better organization
-- **Fast Search & Navigation**: Color-coded HTTP methods and instant tree navigation
+- **Fast Navigation**: Color-coded HTTP methods and instant tree navigation
 - **Request History**: Built-in database storage for request tracking and history
 
 ### Developer Experience
@@ -198,4 +217,3 @@ For issues, questions, or suggestions, please open an issue on GitHub.
 ---
 
 **Built for speed. Built for teams. Built for scale.**
-
