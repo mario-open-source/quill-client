@@ -533,11 +533,13 @@ public class CollectionTreeManager {
         }
 
         DefaultTreeModel model = createTreeModel(rootNode);
-        tree.setModel(model);
 
-        // Expand root node
-        TreePath rootPath = new TreePath(rootNode);
-        tree.expandPath(rootPath);
+        // Update the tree on the EDT
+        SwingUtilities.invokeLater(() -> {
+            tree.setModel(model);
+            TreePath rootPath = new TreePath(rootNode);
+            tree.expandPath(rootPath);
+        });
     }
 
     /**

@@ -26,6 +26,8 @@ import java.io.File;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPopupMenu;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
 
@@ -51,10 +53,21 @@ public class Views {
 
         setupComponents();
 
-        // Load all collections from database on startup
-        collectionManager.loadAllCollections();
-        environmentManager.loadAllEnvironments();
-        updateActiveEnvironmentIndicator();
+        // Load all collections and environments from database on a background
+        // thread to avoid blocking the EDT during startup.
+        new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() {
+                collectionManager.loadAllCollections();
+                environmentManager.loadAllEnvironments();
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                updateActiveEnvironmentIndicator();
+            }
+        }.execute();
     }
 
     private void setupComponents() {

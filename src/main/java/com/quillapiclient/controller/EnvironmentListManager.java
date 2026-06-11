@@ -70,22 +70,30 @@ public class EnvironmentListManager {
 
     public void loadAllEnvironments() {
         Integer previousActiveEnvironmentId = activeEnvironmentId;
-        boolean activeEnvironmentStillExists = false;
-        listModel.clear();
-        environmentInfos.clear();
-        for (EnvironmentDao.EnvironmentInfo info : EnvironmentDao.getAllEnvironments()) {
-            listModel.addElement(info.name);
-            environmentInfos.add(info);
-            if (
-                previousActiveEnvironmentId != null &&
-                info.id == previousActiveEnvironmentId
-            ) {
-                activeEnvironmentStillExists = true;
+
+        // Run the DB query on the calling thread (may be background)
+        java.util.List<EnvironmentDao.EnvironmentInfo> infos =
+            EnvironmentDao.getAllEnvironments();
+
+        // Update Swing model on the EDT
+        SwingUtilities.invokeLater(() -> {
+            boolean activeEnvironmentStillExists = false;
+            listModel.clear();
+            environmentInfos.clear();
+            for (EnvironmentDao.EnvironmentInfo info : infos) {
+                listModel.addElement(info.name);
+                environmentInfos.add(info);
+                if (
+                    previousActiveEnvironmentId != null &&
+                    info.id == previousActiveEnvironmentId
+                ) {
+                    activeEnvironmentStillExists = true;
+                }
             }
-        }
-        if (!activeEnvironmentStillExists) {
-            activeEnvironmentId = null;
-        }
+            if (!activeEnvironmentStillExists) {
+                activeEnvironmentId = null;
+            }
+        });
     }
 
     public JList<String> getList() {
