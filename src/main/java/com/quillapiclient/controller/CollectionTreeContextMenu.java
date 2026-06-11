@@ -121,20 +121,14 @@ public class CollectionTreeContextMenu {
             new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent e) {
-                    if (
-                        e.isPopupTrigger() ||
-                        SwingUtilities.isRightMouseButton(e)
-                    ) {
+                    if (e.isPopupTrigger()) {
                         showPopupMenu(e);
                     }
                 }
 
                 @Override
                 public void mouseReleased(MouseEvent e) {
-                    if (
-                        e.isPopupTrigger() ||
-                        SwingUtilities.isRightMouseButton(e)
-                    ) {
+                    if (e.isPopupTrigger()) {
                         showPopupMenu(e);
                     }
                 }

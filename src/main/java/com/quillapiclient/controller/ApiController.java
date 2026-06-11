@@ -41,7 +41,7 @@ public class ApiController {
         int itemId,
         int environmentId
     ) {
-        if (url.isEmpty()) {
+        if (url == null || url.isEmpty()) {
             responsePanel.setResponse(ResponseFormatter.ERROR_URL_EMPTY);
             responsePanel.resetStatusDurationSize();
             return;
