@@ -65,7 +65,10 @@ public class RequestDao {
                 "Error serializing request data to JSON: " + e.getMessage()
             );
             e.printStackTrace();
-            return; // Exit early if serialization fails
+            throw new RuntimeException(
+                "Error serializing request data to JSON",
+                e
+            );
         }
 
         // Extract auth details
@@ -137,14 +140,16 @@ public class RequestDao {
                 requestId = rs.getInt(1);
             } else {
                 System.err.println("Failed to get generated key for request");
-                return;
+                throw new RuntimeException(
+                    "Failed to get generated key for request"
+                );
             }
         } catch (SQLException e) {
             System.err.println(
                 "Error saving request to database: " + e.getMessage()
             );
             e.printStackTrace();
-            return;
+            throw new RuntimeException("Error saving request to database", e);
         }
 
         // Save headers
@@ -656,7 +661,7 @@ public class RequestDao {
 
             conn.commit();
             return itemId;
-        } catch (SQLException e) {
+        } catch (Exception e) {
             System.err.println("Error creating new request: " + e.getMessage());
             e.printStackTrace();
             try {

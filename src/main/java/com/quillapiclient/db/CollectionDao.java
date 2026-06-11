@@ -123,7 +123,7 @@ public class CollectionDao {
 
             conn.commit();
             return collectionId;
-        } catch (SQLException e) {
+        } catch (Exception e) {
             try {
                 conn.rollback();
             } catch (SQLException rollbackEx) {
