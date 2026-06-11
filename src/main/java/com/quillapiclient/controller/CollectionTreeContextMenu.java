@@ -1,10 +1,12 @@
 package com.quillapiclient.controller;
 
+import java.awt.Rectangle;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.JTree;
+import javax.swing.SwingUtilities;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
 
@@ -119,14 +121,20 @@ public class CollectionTreeContextMenu {
             new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent e) {
-                    if (e.isPopupTrigger()) {
+                    if (
+                        e.isPopupTrigger() ||
+                        SwingUtilities.isRightMouseButton(e)
+                    ) {
                         showPopupMenu(e);
                     }
                 }
 
                 @Override
                 public void mouseReleased(MouseEvent e) {
-                    if (e.isPopupTrigger()) {
+                    if (
+                        e.isPopupTrigger() ||
+                        SwingUtilities.isRightMouseButton(e)
+                    ) {
                         showPopupMenu(e);
                     }
                 }
@@ -135,9 +143,19 @@ public class CollectionTreeContextMenu {
     }
 
     private void showPopupMenu(MouseEvent e) {
-        TreePath path = tree.getPathForLocation(e.getX(), e.getY());
+        // Use getClosestPathForLocation which is forgiving about x-coordinate
+        // (allows right-click anywhere in the row, not just on the text)
+        TreePath path = tree.getClosestPathForLocation(e.getX(), e.getY());
         if (path == null) {
             return;
+        }
+
+        // Ensure click is vertically within the row (not between rows)
+        Rectangle bounds = tree.getPathBounds(path);
+        if (bounds != null) {
+            if (e.getY() < bounds.y || e.getY() >= bounds.y + bounds.height) {
+                return;
+            }
         }
 
         tree.setSelectionPath(path);
