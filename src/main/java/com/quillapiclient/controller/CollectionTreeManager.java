@@ -2,6 +2,7 @@ package com.quillapiclient.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quillapiclient.db.CollectionDao;
+import com.quillapiclient.db.ItemDao;
 import com.quillapiclient.db.RequestDao;
 import com.quillapiclient.objects.PostmanCollection;
 import com.quillapiclient.objects.Request;
@@ -182,7 +183,7 @@ public class CollectionTreeManager {
         }
 
         folderName = folderName.trim();
-        int newItemId = CollectionDao.createNewFolder(
+        int newItemId = ItemDao.createNewFolder(
             collectionId,
             parentId,
             folderName
@@ -232,7 +233,7 @@ public class CollectionTreeManager {
         boolean deleted = switch (itemType) {
             case "collection" -> CollectionDao.deleteCollection(collectionId);
             case "folder", "request" -> itemId != null &&
-                CollectionDao.deleteItem(itemId);
+                ItemDao.deleteItem(itemId);
             default -> false;
         };
 
@@ -609,11 +610,10 @@ public class CollectionTreeManager {
             CollectionDao.getAllItemsForCollection(collectionId);
 
         // Get root items (items with no parent)
-        java.util.List<CollectionDao.ItemInfo> rootItems =
-            itemsData.getRootItems();
+        java.util.List<ItemDao.ItemInfo> rootItems = itemsData.getRootItems();
 
         // Build tree nodes recursively using in-memory data
-        for (CollectionDao.ItemInfo itemInfo : rootItems) {
+        for (ItemDao.ItemInfo itemInfo : rootItems) {
             rootNode.add(buildNodeFromMemory(itemInfo, itemsData));
         }
 
@@ -629,7 +629,7 @@ public class CollectionTreeManager {
      * @return The tree node
      */
     private DefaultMutableTreeNode buildNodeFromMemory(
-        CollectionDao.ItemInfo itemInfo,
+        ItemDao.ItemInfo itemInfo,
         CollectionDao.CollectionItemsData itemsData
     ) {
         // If this item is a request, get the method from the pre-loaded map
@@ -653,9 +653,10 @@ public class CollectionTreeManager {
         DefaultMutableTreeNode node = new DefaultMutableTreeNode(nodeData);
 
         // Get child items from in-memory map (no database query!)
-        java.util.List<CollectionDao.ItemInfo> childItems =
-            itemsData.getChildItems(itemInfo.id);
-        for (CollectionDao.ItemInfo childInfo : childItems) {
+        java.util.List<ItemDao.ItemInfo> childItems = itemsData.getChildItems(
+            itemInfo.id
+        );
+        for (ItemDao.ItemInfo childInfo : childItems) {
             node.add(buildNodeFromMemory(childInfo, itemsData));
         }
 
@@ -837,10 +838,7 @@ public class CollectionTreeManager {
                 return;
             }
 
-            boolean saved = CollectionDao.updateItemName(
-                nodeData.itemId,
-                newName
-            );
+            boolean saved = ItemDao.updateItemName(nodeData.itemId, newName);
             if (!saved) {
                 JOptionPane.showMessageDialog(
                     tree,
