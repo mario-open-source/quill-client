@@ -66,19 +66,24 @@ git clone https://github.com/yourusername/quillclient.git
 cd quillclient
 ```
 
-### Build the Project
+### Build and Install
+
+This compiles the project, packages a fat JAR with all dependencies (via `maven-shade-plugin`), and installs it to your local Maven repository (`~/.m2`):
+
 ```bash
 mvn clean install
 ```
 
 ### Run the Application
-```bash
-mvn exec:java -Dexec.mainClass="com.quillapiclient.Main"
-```
 
-Or if you have a JAR file:
+Run the fat JAR directly:
 ```bash
 java -jar target/quillclient-1.0-SNAPSHOT.jar
+```
+
+Or use the Maven exec plugin:
+```bash
+mvn exec:java
 ```
 
 ## 💻 Usage
