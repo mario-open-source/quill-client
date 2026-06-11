@@ -1,6 +1,5 @@
 package com.quillapiclient.db;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quillapiclient.objects.*;
 import java.sql.*;
 import java.util.ArrayList;
