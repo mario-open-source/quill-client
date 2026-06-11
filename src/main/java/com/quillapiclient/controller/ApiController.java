@@ -3,6 +3,7 @@ package com.quillapiclient.controller;
 import com.quillapiclient.components.ResponsePanel;
 import com.quillapiclient.db.CollectionDao;
 import com.quillapiclient.db.RequestDao;
+import com.quillapiclient.db.ResponseDao;
 import com.quillapiclient.scripting.ScriptOrchestrator;
 import com.quillapiclient.server.ApiCallBuilder;
 import com.quillapiclient.server.ApiResponse;
@@ -112,7 +113,7 @@ public class ApiController {
                 if (itemId > 0) {
                     int requestId = RequestDao.getRequestIdByItemId(itemId);
                     if (requestId > 0) {
-                        RequestDao.saveResponse(response, requestId);
+                        ResponseDao.saveResponse(response, requestId);
                     }
                 }
 

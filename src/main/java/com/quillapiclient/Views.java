@@ -13,6 +13,7 @@ import com.quillapiclient.db.CollectionDao;
 import com.quillapiclient.db.EnvironmentDao;
 import com.quillapiclient.db.EventDao;
 import com.quillapiclient.db.RequestDao;
+import com.quillapiclient.db.ResponseDao;
 import com.quillapiclient.objects.Request;
 import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.utility.OpenFileAction;
@@ -182,7 +183,7 @@ public class Views {
         }
 
         // Get the latest response for this request
-        ApiResponse response = RequestDao.getLatestResponseByRequestId(
+        ApiResponse response = ResponseDao.getLatestResponseByRequestId(
             requestId
         );
 
