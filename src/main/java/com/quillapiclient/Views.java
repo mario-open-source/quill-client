@@ -23,7 +23,6 @@ import java.io.File;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPopupMenu;
-import javax.swing.SwingUtilities;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
 
@@ -37,7 +36,6 @@ public class Views {
     private ApiController apiController;
     private ResponsePanel responsePanel;
     private int environmentContextIndex = -1;
-    private boolean environmentPopupInteraction = false;
     private int currentItemId = -1; // Track the currently selected item ID
 
     public Views() {
@@ -84,25 +82,36 @@ public class Views {
 
         setupEnvironmentContextMenu();
 
-        environmentManager.getList().addListSelectionListener(event -> {
-            if (event.getValueIsAdjusting()) {
-                return;
+        // Open environment variables window on double-click
+        environmentManager.getList().addMouseListener(
+            new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (e.getClickCount() == 2 && !e.isPopupTrigger()) {
+                        int index = environmentManager
+                            .getList()
+                            .locationToIndex(e.getPoint());
+                        if (index < 0) {
+                            return;
+                        }
+                        Rectangle cellBounds = environmentManager
+                            .getList()
+                            .getCellBounds(index, index);
+                        if (
+                            cellBounds == null ||
+                            !cellBounds.contains(e.getPoint())
+                        ) {
+                            return;
+                        }
+                        EnvironmentDao.EnvironmentInfo info =
+                            environmentManager.getEnvironmentInfoAt(index);
+                        if (info != null) {
+                            new EnvironmentVariablesWindow(info.id, info.name);
+                        }
+                    }
+                }
             }
-            if (environmentPopupInteraction) {
-                environmentPopupInteraction = false;
-                return;
-            }
-            int selectedIndex = environmentManager.getList().getSelectedIndex();
-            EnvironmentDao.EnvironmentInfo info =
-                environmentManager.getEnvironmentInfoAt(selectedIndex);
-            if (info != null) {
-                new EnvironmentVariablesWindow(info.id, info.name);
-                // Allow reopening the same environment by making next click a fresh selection change.
-                SwingUtilities.invokeLater(() ->
-                    environmentManager.getList().clearSelection()
-                );
-            }
-        });
+        );
 
         // Connect send button to API controller
         requestPanel.getSendButton().addActionListener(e -> executeApiCall());
@@ -316,14 +325,10 @@ public class Views {
                 public void popupMenuWillBecomeVisible(PopupMenuEvent e) {}
 
                 @Override
-                public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {
-                    environmentPopupInteraction = false;
-                }
+                public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {}
 
                 @Override
-                public void popupMenuCanceled(PopupMenuEvent e) {
-                    environmentPopupInteraction = false;
-                }
+                public void popupMenuCanceled(PopupMenuEvent e) {}
             }
         );
         JMenuItem activateItem = new JMenuItem("Activate environment");
@@ -372,7 +377,6 @@ public class Views {
             return;
         }
 
-        environmentPopupInteraction = true;
         environmentContextIndex = index;
         EnvironmentDao.EnvironmentInfo info =
             environmentManager.getEnvironmentInfoAt(index);
