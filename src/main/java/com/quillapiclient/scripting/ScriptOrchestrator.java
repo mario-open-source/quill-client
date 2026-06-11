@@ -1,6 +1,6 @@
 package com.quillapiclient.scripting;
 
-import com.quillapiclient.db.CollectionDao;
+import com.quillapiclient.db.RequestDao;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -122,14 +122,14 @@ public class ScriptOrchestrator {
 
         // Try item-level script first, then fall back to collection-level
         if (itemId != null && itemId > 0) {
-            String script = CollectionDao.loadScript(
+            String script = RequestDao.loadScript(
                 collectionId,
                 itemId,
                 eventType
             );
             if (script != null && !script.isBlank()) return script;
         }
-        return CollectionDao.loadScript(collectionId, null, eventType);
+        return RequestDao.loadScript(collectionId, null, eventType);
     }
 
     private ScriptBindings buildBindings() {

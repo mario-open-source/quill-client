@@ -11,6 +11,7 @@ import com.quillapiclient.controller.CollectionTreeManager;
 import com.quillapiclient.controller.EnvironmentListManager;
 import com.quillapiclient.db.CollectionDao;
 import com.quillapiclient.db.EnvironmentDao;
+import com.quillapiclient.db.RequestDao;
 import com.quillapiclient.objects.Request;
 import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.utility.OpenFileAction;
@@ -171,7 +172,7 @@ public class Views {
         }
 
         // Get the request ID from the item ID
-        int requestId = CollectionDao.getRequestIdByItemId(currentItemId);
+        int requestId = RequestDao.getRequestIdByItemId(currentItemId);
         if (requestId <= 0) {
             responsePanel.setResponse(ResponseFormatter.NO_RESPONSE_MESSAGE);
             responsePanel.setErrorState(false);
@@ -180,7 +181,7 @@ public class Views {
         }
 
         // Get the latest response for this request
-        ApiResponse response = CollectionDao.getLatestResponseByRequestId(
+        ApiResponse response = RequestDao.getLatestResponseByRequestId(
             requestId
         );
 
@@ -219,7 +220,7 @@ public class Views {
         Request request = requestPanel.buildRequestFromUI();
 
         // Update in database
-        boolean success = CollectionDao.updateRequest(currentItemId, request);
+        boolean success = RequestDao.updateRequest(currentItemId, request);
 
         if (success) {
             System.out.println("Request saved successfully");
@@ -233,7 +234,7 @@ public class Views {
 
             // Clear unsaved changes and reload from database
             requestPanel.clearUnsavedChanges();
-            Request updatedRequest = CollectionDao.getRequestByItemId(
+            Request updatedRequest = RequestDao.getRequestByItemId(
                 currentItemId
             );
             if (updatedRequest != null) {
@@ -303,13 +304,13 @@ public class Views {
 
         // Always save at item level — empty string means "no item-level script"
         // (collection-level scripts will still be used as fallback)
-        CollectionDao.saveScript(
+        RequestDao.saveScript(
             collectionId,
             currentItemId,
             "prerequest",
             preScript != null && !preScript.isBlank() ? preScript : null
         );
-        CollectionDao.saveScript(
+        RequestDao.saveScript(
             collectionId,
             currentItemId,
             "test",

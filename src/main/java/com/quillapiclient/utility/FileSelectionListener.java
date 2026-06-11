@@ -1,15 +1,15 @@
 package com.quillapiclient.utility;
 
+import com.quillapiclient.controller.CollectionTreeManager.TreeNodeData;
+import com.quillapiclient.db.RequestDao;
+import com.quillapiclient.objects.Request;
 import javax.swing.JTree;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 
-import com.quillapiclient.controller.CollectionTreeManager.TreeNodeData;
-import com.quillapiclient.db.CollectionDao;
-import com.quillapiclient.objects.Request;
-
 public class FileSelectionListener implements TreeSelectionListener {
+
     private JTree jTree;
     private RequestSelectionCallback callback;
     private ItemIdCallback itemIdCallback;
@@ -21,7 +21,7 @@ public class FileSelectionListener implements TreeSelectionListener {
     public interface RequestSelectionCallback {
         void onRequestSelected(Request request);
     }
-    
+
     /**
      * Callback interface for tracking item ID
      */
@@ -30,11 +30,14 @@ public class FileSelectionListener implements TreeSelectionListener {
         void onItemIdSelected(int itemId);
     }
 
-    public FileSelectionListener(JTree jTree, RequestSelectionCallback callback) {
+    public FileSelectionListener(
+        JTree jTree,
+        RequestSelectionCallback callback
+    ) {
         this.jTree = jTree;
         this.callback = callback;
     }
-    
+
     public void setItemIdCallback(ItemIdCallback itemIdCallback) {
         this.itemIdCallback = itemIdCallback;
     }
@@ -42,34 +45,36 @@ public class FileSelectionListener implements TreeSelectionListener {
     @Override
     public void valueChanged(TreeSelectionEvent e) {
         // Get selected file/folder
-        DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) jTree.getLastSelectedPathComponent();
+        DefaultMutableTreeNode selectedNode =
+            (DefaultMutableTreeNode) jTree.getLastSelectedPathComponent();
         if (selectedNode == null) {
             return;
         }
-        
+
         // Get the TreeNodeData from the selected node
         Object userObject = selectedNode.getUserObject();
         if (!(userObject instanceof TreeNodeData)) {
             return;
         }
-        
+
         TreeNodeData nodeData = (TreeNodeData) userObject;
-        
+
         // Only process requests, not folders
         if (!"request".equals(nodeData.itemType)) {
             return;
         }
-        
+
         // Notify about item ID selection
         if (itemIdCallback != null) {
             itemIdCallback.onItemIdSelected(nodeData.itemId);
         }
-        
+
         // Query the database for the request
-        Request selectedRequest = CollectionDao.getRequestByItemId(nodeData.itemId);
+        Request selectedRequest = RequestDao.getRequestByItemId(
+            nodeData.itemId
+        );
         if (callback != null && selectedRequest != null) {
             callback.onRequestSelected(selectedRequest);
         }
     }
 }
-

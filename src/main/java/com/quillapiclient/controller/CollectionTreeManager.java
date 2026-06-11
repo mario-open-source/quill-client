@@ -2,6 +2,7 @@ package com.quillapiclient.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quillapiclient.db.CollectionDao;
+import com.quillapiclient.db.RequestDao;
 import com.quillapiclient.objects.PostmanCollection;
 import com.quillapiclient.objects.Request;
 import java.awt.Component;
@@ -100,7 +101,7 @@ public class CollectionTreeManager {
             listener.accept(nodeData.itemId);
         }
 
-        Request selectedRequest = CollectionDao.getRequestByItemId(
+        Request selectedRequest = RequestDao.getRequestByItemId(
             nodeData.itemId
         );
         if (selectedRequest == null) {
@@ -136,7 +137,7 @@ public class CollectionTreeManager {
 
         requestName = requestName.trim();
         // Create the new request in database
-        int newItemId = CollectionDao.createNewRequest(
+        int newItemId = RequestDao.createNewRequest(
             collectionId,
             parentId,
             requestName
