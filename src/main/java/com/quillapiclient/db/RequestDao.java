@@ -284,11 +284,11 @@ public class RequestDao {
 
             // Load headers
             int requestId = rs.getInt("id");
-            List<Header> headers = getHeaders(requestId);
+            List<Header> headers = HeaderDao.getHeaders(requestId);
             request.setHeader(headers);
 
             // Load query parameters
-            List<Query> queries = getQueryParams(requestId);
+            List<Query> queries = QueryParamDao.getQueryParams(requestId);
             if (queries != null && !queries.isEmpty() && url != null) {
                 url.setQuery(queries);
             }
@@ -733,67 +733,5 @@ public class RequestDao {
         } catch (SQLException e) {
             return null;
         }
-    }
-
-    /**
-     * Gets all headers for a request.
-     */
-    private static List<Header> getHeaders(int requestId) {
-        List<Header> headers = new ArrayList<>();
-        Connection conn = LiteConnection.getConnection();
-
-        try (
-            PreparedStatement stmt = conn.prepareStatement(
-                "SELECT header_key, header_value, disabled FROM headers WHERE request_id = ? ORDER BY sort_order"
-            )
-        ) {
-            stmt.setInt(1, requestId);
-            ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                Header header = new Header();
-                header.setKey(rs.getString("header_key"));
-                header.setValue(rs.getString("header_value"));
-                header.setDisabled(rs.getInt("disabled") == 1);
-                headers.add(header);
-            }
-        } catch (SQLException e) {
-            System.err.println(
-                "Error getting headers from database: " + e.getMessage()
-            );
-            e.printStackTrace();
-        }
-
-        return headers;
-    }
-
-    /**
-     * Gets all query parameters for a request.
-     */
-    private static List<Query> getQueryParams(int requestId) {
-        List<Query> queries = new ArrayList<>();
-        Connection conn = LiteConnection.getConnection();
-
-        try (
-            PreparedStatement stmt = conn.prepareStatement(
-                "SELECT param_key, param_value FROM query_params WHERE request_id = ? ORDER BY sort_order"
-            )
-        ) {
-            stmt.setInt(1, requestId);
-            ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                Query query = new Query();
-                query.setKey(rs.getString("param_key"));
-                query.setValue(rs.getString("param_value"));
-                queries.add(query);
-            }
-        } catch (SQLException e) {
-            System.err.println(
-                "Error getting query parameters from database: " +
-                    e.getMessage()
-            );
-            e.printStackTrace();
-        }
-
-        return queries;
     }
 }
