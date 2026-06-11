@@ -2,7 +2,7 @@ package com.quillapiclient.utility;
 
 import com.quillapiclient.components.ScriptsPanel;
 import com.quillapiclient.db.CollectionDao;
-import com.quillapiclient.db.RequestDao;
+import com.quillapiclient.db.EventDao;
 
 /**
  * Loads pre-request and post-response scripts from persistence
@@ -38,10 +38,10 @@ public class ScriptLoader {
     }
 
     private String findScript(int collectionId, int itemId, String type) {
-        String script = RequestDao.loadScript(collectionId, itemId, type);
+        String script = EventDao.loadScript(collectionId, itemId, type);
         if (script != null) {
             return script;
         }
-        return RequestDao.loadScript(collectionId, null, type);
+        return EventDao.loadScript(collectionId, null, type);
     }
 }

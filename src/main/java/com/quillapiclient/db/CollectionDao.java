@@ -2,6 +2,7 @@ package com.quillapiclient.db;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.quillapiclient.db.EventDao;
 import com.quillapiclient.objects.*;
 import com.quillapiclient.server.ApiResponse;
 import java.sql.*;
@@ -111,7 +112,12 @@ public class CollectionDao {
 
             // Save collection-level events
             if (collection.getEvent() != null) {
-                saveEvents(conn, collectionId, null, collection.getEvent());
+                EventDao.saveEvents(
+                    conn,
+                    collectionId,
+                    null,
+                    collection.getEvent()
+                );
             }
 
             // Save items recursively
@@ -202,7 +208,7 @@ public class CollectionDao {
 
         // Save item-level events (pre-request / test scripts)
         if (item.getEvent() != null) {
-            saveEvents(conn, collectionId, itemId, item.getEvent());
+            EventDao.saveEvents(conn, collectionId, itemId, item.getEvent());
         }
 
         // If it's a request, save request details
@@ -250,65 +256,6 @@ public class CollectionDao {
             } catch (SQLException e) {
                 System.err.println(
                     "Error saving variable to database: " + e.getMessage()
-                );
-                e.printStackTrace();
-            }
-        }
-    }
-
-    /**
-     * Saves events to the database.
-     */
-    private static void saveEvents(
-        Connection conn,
-        Integer collectionId,
-        Integer itemId,
-        List<Event> events
-    ) {
-        for (Event event : events) {
-            String eventJson = null;
-            try {
-                eventJson = objectMapper.writeValueAsString(event);
-            } catch (JsonProcessingException e) {
-                System.err.println(
-                    "Error serializing event data to JSON: " + e.getMessage()
-                );
-                e.printStackTrace();
-                continue; // Skip this event if serialization fails
-            }
-
-            String eventType =
-                event.getListen() != null ? event.getListen() : null;
-            String scriptType = null;
-            String scriptExec = null;
-
-            if (event.getScript() != null) {
-                scriptType = event.getScript().getType();
-                if (event.getScript().getExec() != null) {
-                    scriptExec = String.join("\n", event.getScript().getExec());
-                }
-            }
-
-            try (
-                PreparedStatement stmt = conn.prepareStatement(
-                    "INSERT INTO events (collection_id, item_id, event_type, script_type, script_exec, full_event_json) " +
-                        "VALUES (?, ?, ?, ?, ?, ?)"
-                )
-            ) {
-                stmt.setInt(1, collectionId);
-                if (itemId != null) {
-                    stmt.setInt(2, itemId);
-                } else {
-                    stmt.setNull(2, Types.INTEGER);
-                }
-                stmt.setString(3, eventType);
-                stmt.setString(4, scriptType);
-                stmt.setString(5, scriptExec);
-                stmt.setString(6, eventJson);
-                stmt.executeUpdate();
-            } catch (SQLException e) {
-                System.err.println(
-                    "Error saving event to database: " + e.getMessage()
                 );
                 e.printStackTrace();
             }

@@ -11,6 +11,7 @@ import com.quillapiclient.controller.CollectionTreeManager;
 import com.quillapiclient.controller.EnvironmentListManager;
 import com.quillapiclient.db.CollectionDao;
 import com.quillapiclient.db.EnvironmentDao;
+import com.quillapiclient.db.EventDao;
 import com.quillapiclient.db.RequestDao;
 import com.quillapiclient.objects.Request;
 import com.quillapiclient.server.ApiResponse;
@@ -304,13 +305,13 @@ public class Views {
 
         // Always save at item level — empty string means "no item-level script"
         // (collection-level scripts will still be used as fallback)
-        RequestDao.saveScript(
+        EventDao.saveScript(
             collectionId,
             currentItemId,
             "prerequest",
             preScript != null && !preScript.isBlank() ? preScript : null
         );
-        RequestDao.saveScript(
+        EventDao.saveScript(
             collectionId,
             currentItemId,
             "test",
