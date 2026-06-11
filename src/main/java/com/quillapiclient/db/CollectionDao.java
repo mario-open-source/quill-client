@@ -1,10 +1,7 @@
 package com.quillapiclient.db;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.quillapiclient.db.EventDao;
 import com.quillapiclient.objects.*;
-import com.quillapiclient.server.ApiResponse;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,8 +13,6 @@ import java.util.Map;
  * Handles saving collections and querying them for UI building.
  */
 public class CollectionDao {
-
-    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Saves a Postman collection to the database.
