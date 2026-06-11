@@ -85,6 +85,10 @@ public class ApiController {
                 "[ApiController] mergedVars keys: " + mergedVars.keySet()
             );
 
+            System.out.println(
+                "[ApiController] mergedVars values: " + mergedVars.values()
+            );
+
             try {
                 ApiResponse response = ApiCallBuilder.fromUI(
                     url,

@@ -307,6 +307,19 @@ public class ApiCallBuilder {
 
             requestBuilder.method(method, bodyPublisher);
 
+            // Debug: print all request values
+            printRequestDetails(
+                fullUrl,
+                method,
+                headers,
+                body,
+                bodyPublisher,
+                authType,
+                username,
+                password,
+                token
+            );
+
             HttpRequest request = requestBuilder.build();
 
             // Execute request
@@ -386,6 +399,46 @@ public class ApiCallBuilder {
             );
             return errorResponse;
         }
+    }
+
+    // Debug: print all values being sent in the request
+    private void printRequestDetails(
+        String fullUrl,
+        String method,
+        Map<String, String> headers,
+        String body,
+        HttpRequest.BodyPublisher bodyPublisher,
+        AuthType authType,
+        String username,
+        String password,
+        String token
+    ) {
+        System.out.println("========== API REQUEST ==========");
+        System.out.println("URL: " + fullUrl);
+        System.out.println("Method: " + method);
+        System.out.println(
+            "Auth Type: " +
+                (authType != null ? authType.getDisplayName() : "NONE")
+        );
+        if (username != null) {
+            System.out.println("Username: " + username);
+        }
+        if (password != null) {
+            System.out.println("Password: " + password);
+        }
+        if (token != null) {
+            System.out.println("Token: " + token);
+        }
+        System.out.println("Headers:");
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            System.out.println("  " + entry.getKey() + ": " + entry.getValue());
+        }
+        if (body != null && !body.trim().isEmpty()) {
+            System.out.println("Body: " + body);
+        } else {
+            System.out.println("Body: (empty)");
+        }
+        System.out.println("=================================");
     }
 
     // Static factory method for quick creation
