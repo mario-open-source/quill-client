@@ -9,10 +9,8 @@ import com.quillapiclient.components.ScriptsPanel;
 import com.quillapiclient.controller.ApiController;
 import com.quillapiclient.controller.CollectionTreeManager;
 import com.quillapiclient.controller.EnvironmentListManager;
-import com.quillapiclient.db.CollectionDao;
+import com.quillapiclient.controller.RequestController;
 import com.quillapiclient.db.EnvironmentDao;
-import com.quillapiclient.db.EventDao;
-import com.quillapiclient.db.RequestDao;
 import com.quillapiclient.objects.Request;
 import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.utility.OpenFileAction;
@@ -25,7 +23,6 @@ import java.io.File;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPopupMenu;
-import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
@@ -38,6 +35,7 @@ public class Views {
     private CollectionTreeManager collectionManager;
     private EnvironmentListManager environmentManager;
     private ApiController apiController;
+    private RequestController requestController;
     private ResponsePanel responsePanel;
     private int environmentContextIndex = -1;
     private int currentItemId = -1; // Track the currently selected item ID
@@ -46,6 +44,7 @@ public class Views {
         mainWindow = new MainWindow();
         responsePanel = new ResponsePanel();
         apiController = new ApiController(responsePanel);
+        requestController = new RequestController();
         collectionManager = new CollectionTreeManager();
         environmentManager = new EnvironmentListManager();
         requestPanel = new RequestPanel();
@@ -212,8 +211,11 @@ public class Views {
         // Build Request object from UI
         Request request = requestPanel.buildRequestFromUI();
 
-        // Update in database
-        boolean success = RequestDao.updateRequest(currentItemId, request);
+        // Delegate persistence to the controller
+        boolean success = requestController.updateRequest(
+            currentItemId,
+            request
+        );
 
         if (success) {
             System.out.println("Request saved successfully");
@@ -222,12 +224,12 @@ public class Views {
                 request.getMethod()
             );
 
-            // Save scripts (item-level if set, otherwise delete item-level so collection-level shows)
+            // Save scripts (item-level if set, otherwise clear item-level so collection-level shows)
             saveScriptsForCurrentItem();
 
-            // Clear unsaved changes and reload from database
+            // Clear unsaved changes and reload from database via controller
             requestPanel.clearUnsavedChanges();
-            Request updatedRequest = RequestDao.getRequestByItemId(
+            Request updatedRequest = requestController.getRequestByItemId(
                 currentItemId
             );
             if (updatedRequest != null) {
@@ -286,28 +288,13 @@ public class Views {
     private void saveScriptsForCurrentItem() {
         if (currentItemId <= 0) return;
 
-        int collectionId = CollectionDao.getCollectionIdByItemId(currentItemId);
-        if (collectionId <= 0) return;
-
         ScriptsPanel scriptsPanel = requestPanel.getScriptsPanel();
         if (scriptsPanel == null) return;
 
-        String preScript = scriptsPanel.getPreRequestScript();
-        String testScript = scriptsPanel.getTestScript();
-
-        // Always save at item level — empty string means "no item-level script"
-        // (collection-level scripts will still be used as fallback)
-        EventDao.saveScript(
-            collectionId,
+        requestController.saveScriptsForItem(
             currentItemId,
-            "prerequest",
-            preScript != null && !preScript.isBlank() ? preScript : null
-        );
-        EventDao.saveScript(
-            collectionId,
-            currentItemId,
-            "test",
-            testScript != null && !testScript.isBlank() ? testScript : null
+            scriptsPanel.getPreRequestScript(),
+            scriptsPanel.getTestScript()
         );
     }
 
