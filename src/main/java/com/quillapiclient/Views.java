@@ -119,7 +119,11 @@ public class Views {
                         EnvironmentListManager.EnvironmentInfo info =
                             environmentManager.getEnvironmentInfoAt(index);
                         if (info != null) {
-                            new EnvironmentVariablesWindow(info.id, info.name);
+                            new EnvironmentVariablesWindow(
+                                info.id,
+                                info.name,
+                                environmentManager
+                            );
                         }
                     }
                 }

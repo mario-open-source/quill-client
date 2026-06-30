@@ -1,6 +1,6 @@
 package com.quillapiclient.components;
 
-import com.quillapiclient.db.EnvironmentDao;
+import com.quillapiclient.controller.EnvironmentListManager;
 import com.quillapiclient.objects.PostmanEnvironmentValue;
 import com.quillapiclient.utility.TableEditUtil;
 import java.awt.BorderLayout;
@@ -22,19 +22,22 @@ public class EnvironmentVariablesWindow {
 
     private final int environmentId;
     private final String environmentName;
+    private final EnvironmentListManager environmentManager;
     private final JFrame frame;
     private final EnvironmentValuesTableModel tableModel;
     private JTable table;
 
     public EnvironmentVariablesWindow(
         int environmentId,
-        String environmentName
+        String environmentName,
+        EnvironmentListManager environmentManager
     ) {
         this.environmentId = environmentId;
         this.environmentName = environmentName;
+        this.environmentManager = environmentManager;
         this.frame = new JFrame("Environment Variables - " + environmentName);
         this.tableModel = new EnvironmentValuesTableModel(
-            EnvironmentDao.getEnvironmentValueRecords(environmentId)
+            environmentManager.getEnvironmentValueRecords(environmentId)
         );
         buildUi();
     }
@@ -105,7 +108,7 @@ public class EnvironmentVariablesWindow {
     private void saveValues() {
         TableEditUtil.commitOrCancelTableEdit(table);
         List<PostmanEnvironmentValue> values = tableModel.getValuesForSave();
-        boolean success = EnvironmentDao.replaceEnvironmentValues(
+        boolean success = environmentManager.replaceEnvironmentValues(
             environmentId,
             values
         );
@@ -162,7 +165,7 @@ public class EnvironmentVariablesWindow {
         );
         if (
             !persistedIds.isEmpty() &&
-            !EnvironmentDao.deleteEnvironmentValuesByIds(
+            !environmentManager.deleteEnvironmentValuesByIds(
                 environmentId,
                 persistedIds
             )

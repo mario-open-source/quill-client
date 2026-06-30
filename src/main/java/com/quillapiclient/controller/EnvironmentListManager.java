@@ -3,13 +3,16 @@ package com.quillapiclient.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quillapiclient.db.EnvironmentDao;
 import com.quillapiclient.objects.PostmanEnvironment;
+import com.quillapiclient.objects.PostmanEnvironmentValue;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.DefaultListModel;
@@ -35,6 +38,21 @@ public class EnvironmentListManager {
         public EnvironmentInfo(int id, String name) {
             this.id = id;
             this.name = name;
+        }
+    }
+
+    /**
+     * Lightweight DTO for an environment variable row in the editor table.
+     * Owned by the controller layer so that view components never import the DAO package.
+     */
+    public static class EnvironmentValueRecord {
+
+        public final int id;
+        public final PostmanEnvironmentValue value;
+
+        public EnvironmentValueRecord(int id, PostmanEnvironmentValue value) {
+            this.id = id;
+            this.value = value;
         }
     }
 
@@ -194,7 +212,7 @@ public class EnvironmentListManager {
         }
 
         Map<String, String> environmentVariables = new HashMap<>();
-        for (com.quillapiclient.objects.PostmanEnvironmentValue value : EnvironmentDao.getEnvironmentValues(
+        for (PostmanEnvironmentValue value : EnvironmentDao.getEnvironmentValues(
             activeEnvironmentId
         )) {
             if (
@@ -214,6 +232,46 @@ public class EnvironmentListManager {
             );
         }
         return environmentVariables;
+    }
+
+    /**
+     * Loads all persisted environment variable rows for the given environment.
+     */
+    public List<EnvironmentValueRecord> getEnvironmentValueRecords(
+        int environmentId
+    ) {
+        List<EnvironmentDao.EnvironmentValueRecord> daoRecords =
+            EnvironmentDao.getEnvironmentValueRecords(environmentId);
+        List<EnvironmentValueRecord> result = new ArrayList<>();
+        for (EnvironmentDao.EnvironmentValueRecord daoRecord : daoRecords) {
+            result.add(
+                new EnvironmentValueRecord(daoRecord.id, daoRecord.value)
+            );
+        }
+        return result;
+    }
+
+    /**
+     * Atomically replaces all environment variable values for a given environment.
+     */
+    public boolean replaceEnvironmentValues(
+        int environmentId,
+        List<PostmanEnvironmentValue> values
+    ) {
+        return EnvironmentDao.replaceEnvironmentValues(environmentId, values);
+    }
+
+    /**
+     * Deletes specific environment variable rows by their record IDs.
+     */
+    public boolean deleteEnvironmentValuesByIds(
+        int environmentId,
+        List<Integer> valueIds
+    ) {
+        return EnvironmentDao.deleteEnvironmentValuesByIds(
+            environmentId,
+            valueIds
+        );
     }
 
     private void startInlineEdit(int index, EnvironmentInfo info) {

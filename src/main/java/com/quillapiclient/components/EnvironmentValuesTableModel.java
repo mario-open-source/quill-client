@@ -1,12 +1,11 @@
 package com.quillapiclient.components;
 
-import com.quillapiclient.db.EnvironmentDao;
+import com.quillapiclient.controller.EnvironmentListManager;
 import com.quillapiclient.objects.PostmanEnvironmentValue;
-
-import javax.swing.table.AbstractTableModel;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import javax.swing.table.AbstractTableModel;
 
 /**
  * Table model for the environment-variables editor window.
@@ -20,14 +19,14 @@ public class EnvironmentValuesTableModel extends AbstractTableModel {
     private final List<EnvironmentValueRow> rows;
 
     public EnvironmentValuesTableModel(
-        List<EnvironmentDao.EnvironmentValueRecord> initialRecords
+        List<EnvironmentListManager.EnvironmentValueRecord> initialRecords
     ) {
         this.rows = new ArrayList<>();
         if (initialRecords == null) {
             return;
         }
 
-        for (EnvironmentDao.EnvironmentValueRecord record : initialRecords) {
+        for (EnvironmentListManager.EnvironmentValueRecord record : initialRecords) {
             if (record == null || record.value == null) {
                 continue;
             }
@@ -38,9 +37,7 @@ public class EnvironmentValuesTableModel extends AbstractTableModel {
     // ---- row-level operations ----
 
     public int addEmptyRow() {
-        rows.add(
-            new EnvironmentValueRow(null, new PostmanEnvironmentValue())
-        );
+        rows.add(new EnvironmentValueRow(null, new PostmanEnvironmentValue()));
         int newRow = rows.size() - 1;
         fireTableRowsInserted(newRow, newRow);
         return newRow;
@@ -69,9 +66,7 @@ public class EnvironmentValuesTableModel extends AbstractTableModel {
         }
 
         for (Integer rowIndex : rowIndexes) {
-            if (
-                rowIndex == null || rowIndex < 0 || rowIndex >= rows.size()
-            ) {
+            if (rowIndex == null || rowIndex < 0 || rowIndex >= rows.size()) {
                 continue;
             }
             Integer id = rows.get(rowIndex).id;
