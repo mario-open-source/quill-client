@@ -3,7 +3,6 @@ package com.quillapiclient.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quillapiclient.db.CollectionDao;
 import com.quillapiclient.db.ItemDao;
-import com.quillapiclient.db.RequestDao;
 import com.quillapiclient.objects.PostmanCollection;
 import com.quillapiclient.objects.Request;
 import java.awt.Component;
@@ -24,12 +23,14 @@ public class CollectionTreeManager {
 
     private JTree tree;
     private int currentCollectionId = -1;
+    private final RequestController requestController;
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private final List<Consumer<TreeSelectionEvent>> treeSelectionHandlers;
     private final List<IntConsumer> requestItemIdListeners;
     private final List<Consumer<Request>> requestSelectionListeners;
 
-    public CollectionTreeManager() {
+    public CollectionTreeManager(RequestController requestController) {
+        this.requestController = requestController;
         treeSelectionHandlers = new ArrayList<>();
         requestItemIdListeners = new ArrayList<>();
         requestSelectionListeners = new ArrayList<>();
@@ -102,7 +103,7 @@ public class CollectionTreeManager {
             listener.accept(nodeData.itemId);
         }
 
-        Request selectedRequest = RequestDao.getRequestByItemId(
+        Request selectedRequest = requestController.getRequestByItemId(
             nodeData.itemId
         );
         if (selectedRequest == null) {
@@ -138,7 +139,7 @@ public class CollectionTreeManager {
 
         requestName = requestName.trim();
         // Create the new request in database
-        int newItemId = RequestDao.createNewRequest(
+        int newItemId = requestController.createNewRequest(
             collectionId,
             parentId,
             requestName
@@ -343,7 +344,7 @@ public class CollectionTreeManager {
             DefaultMutableTreeNode folderNode = findNodeDepthFirst(
                 collectionNode,
                 uo ->
-                    (uo instanceof TreeNodeData nd) &&
+                    uo instanceof TreeNodeData nd &&
                     "folder".equals(nd.itemType) &&
                     nd.itemId == parentFolderId
             );
@@ -684,9 +685,8 @@ public class CollectionTreeManager {
         String method,
         String defaultMethod
     ) {
-        String resolvedMethod = (method == null || method.isBlank())
-            ? defaultMethod
-            : method;
+        String resolvedMethod =
+            method == null || method.isBlank() ? defaultMethod : method;
         if (resolvedMethod == null || resolvedMethod.isBlank()) {
             return requestName;
         }
@@ -725,7 +725,7 @@ public class CollectionTreeManager {
         DefaultMutableTreeNode requestNode = findNodeDepthFirst(
             root,
             uo ->
-                (uo instanceof TreeNodeData nd) &&
+                uo instanceof TreeNodeData nd &&
                 "request".equals(nd.itemType) &&
                 nd.itemId == itemId
         );

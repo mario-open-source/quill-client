@@ -43,6 +43,22 @@ public class RequestController {
     }
 
     /**
+     * Creates a new request in the database with a default GET method.
+     *
+     * @param collectionId the collection to add the request to
+     * @param parentId     the parent folder ID, or null for root level
+     * @param requestName  the display name for the new request
+     * @return the new item ID, or -1 on failure
+     */
+    public int createNewRequest(
+        int collectionId,
+        Integer parentId,
+        String requestName
+    ) {
+        return RequestDao.createNewRequest(collectionId, parentId, requestName);
+    }
+
+    /**
      * Saves pre-request and post-response (test) scripts for a given item.
      * Resolves the collection from the item ID internally.
      * Passing null or blank for a script means "clear the item-level script"

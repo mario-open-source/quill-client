@@ -44,7 +44,7 @@ public class Views {
         responsePanel = new ResponsePanel();
         apiController = new ApiController(responsePanel, requestController);
         requestController = new RequestController();
-        collectionManager = new CollectionTreeManager();
+        collectionManager = new CollectionTreeManager(requestController);
         environmentManager = new EnvironmentListManager();
         requestPanel = new RequestPanel();
 
