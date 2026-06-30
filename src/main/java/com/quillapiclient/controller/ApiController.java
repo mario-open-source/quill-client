@@ -2,7 +2,6 @@ package com.quillapiclient.controller;
 
 import com.quillapiclient.components.ResponsePanel;
 import com.quillapiclient.db.CollectionDao;
-import com.quillapiclient.db.RequestDao;
 import com.quillapiclient.db.ResponseDao;
 import com.quillapiclient.scripting.ScriptOrchestrator;
 import com.quillapiclient.server.ApiCallBuilder;
@@ -18,12 +17,17 @@ import javax.swing.*;
 public class ApiController {
 
     private ResponsePanel responsePanel;
+    private RequestController requestController;
     private static final int NUMBER_OF_THREADS = 1;
     private static final ExecutorService executorService =
         Executors.newFixedThreadPool(NUMBER_OF_THREADS);
 
-    public ApiController(ResponsePanel responsePanel) {
+    public ApiController(
+        ResponsePanel responsePanel,
+        RequestController requestController
+    ) {
         this.responsePanel = responsePanel;
+        this.requestController = requestController;
     }
 
     /**
@@ -111,7 +115,9 @@ public class ApiController {
 
                 // Save response to database
                 if (itemId > 0) {
-                    int requestId = RequestDao.getRequestIdByItemId(itemId);
+                    int requestId = requestController.getRequestIdByItemId(
+                        itemId
+                    );
                     if (requestId > 0) {
                         ResponseDao.saveResponse(response, requestId);
                     }
@@ -176,7 +182,7 @@ public class ApiController {
             return null;
         }
 
-        int requestId = RequestDao.getRequestIdByItemId(itemId);
+        int requestId = requestController.getRequestIdByItemId(itemId);
         if (requestId <= 0) {
             return null;
         }

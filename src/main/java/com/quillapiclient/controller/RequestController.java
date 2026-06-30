@@ -33,6 +33,16 @@ public class RequestController {
     }
 
     /**
+     * Resolves the request ID for a given item ID.
+     *
+     * @param itemId the item ID to resolve
+     * @return the request ID, or -1 if not found
+     */
+    public int getRequestIdByItemId(int itemId) {
+        return RequestDao.getRequestIdByItemId(itemId);
+    }
+
+    /**
      * Saves pre-request and post-response (test) scripts for a given item.
      * Resolves the collection from the item ID internally.
      * Passing null or blank for a script means "clear the item-level script"
