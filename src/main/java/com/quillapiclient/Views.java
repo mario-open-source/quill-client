@@ -10,7 +10,6 @@ import com.quillapiclient.controller.ApiController;
 import com.quillapiclient.controller.CollectionTreeManager;
 import com.quillapiclient.controller.EnvironmentListManager;
 import com.quillapiclient.controller.RequestController;
-import com.quillapiclient.db.EnvironmentDao;
 import com.quillapiclient.objects.Request;
 import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.utility.OpenFileAction;
@@ -117,7 +116,7 @@ public class Views {
                         ) {
                             return;
                         }
-                        EnvironmentDao.EnvironmentInfo info =
+                        EnvironmentListManager.EnvironmentInfo info =
                             environmentManager.getEnvironmentInfoAt(index);
                         if (info != null) {
                             new EnvironmentVariablesWindow(info.id, info.name);
@@ -359,7 +358,7 @@ public class Views {
         }
 
         environmentContextIndex = index;
-        EnvironmentDao.EnvironmentInfo info =
+        EnvironmentListManager.EnvironmentInfo info =
             environmentManager.getEnvironmentInfoAt(index);
         boolean isActive =
             info != null &&
@@ -387,7 +386,7 @@ public class Views {
         if (environmentContextIndex < 0) {
             return;
         }
-        EnvironmentDao.EnvironmentInfo info =
+        EnvironmentListManager.EnvironmentInfo info =
             environmentManager.getEnvironmentInfoAt(environmentContextIndex);
         if (info == null) {
             return;

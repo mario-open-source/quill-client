@@ -23,11 +23,24 @@ import javax.swing.SwingUtilities;
 
 public class EnvironmentListManager {
 
+    /**
+     * Lightweight DTO for environment list entries. Owned by the controller layer
+     * so that views never need to import the DAO package.
+     */
+    public static class EnvironmentInfo {
+
+        public final int id;
+        public final String name;
+
+        public EnvironmentInfo(int id, String name) {
+            this.id = id;
+            this.name = name;
+        }
+    }
+
     private final JList<String> list;
     private final DefaultListModel<String> listModel;
-    private final java.util.List<
-        EnvironmentDao.EnvironmentInfo
-    > environmentInfos;
+    private final java.util.List<EnvironmentInfo> environmentInfos;
     private Integer activeEnvironmentId;
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private static final String DEFAULT_NEW_ENVIRONMENT_NAME =
@@ -72,15 +85,21 @@ public class EnvironmentListManager {
         Integer previousActiveEnvironmentId = activeEnvironmentId;
 
         // Run the DB query on the calling thread (may be background)
-        java.util.List<EnvironmentDao.EnvironmentInfo> infos =
+        java.util.List<EnvironmentDao.EnvironmentInfo> daoInfos =
             EnvironmentDao.getAllEnvironments();
+
+        // Map DAO type → controller type at the boundary
+        java.util.List<EnvironmentInfo> mapped = new java.util.ArrayList<>();
+        for (EnvironmentDao.EnvironmentInfo daoInfo : daoInfos) {
+            mapped.add(new EnvironmentInfo(daoInfo.id, daoInfo.name));
+        }
 
         // Update Swing model on the EDT
         SwingUtilities.invokeLater(() -> {
             boolean activeEnvironmentStillExists = false;
             listModel.clear();
             environmentInfos.clear();
-            for (EnvironmentDao.EnvironmentInfo info : infos) {
+            for (EnvironmentInfo info : mapped) {
                 listModel.addElement(info.name);
                 environmentInfos.add(info);
                 if (
@@ -100,7 +119,7 @@ public class EnvironmentListManager {
         return list;
     }
 
-    public EnvironmentDao.EnvironmentInfo getEnvironmentInfoAt(int index) {
+    public EnvironmentInfo getEnvironmentInfoAt(int index) {
         if (index < 0 || index >= environmentInfos.size()) {
             return null;
         }
@@ -108,12 +127,12 @@ public class EnvironmentListManager {
     }
 
     public void setActiveEnvironmentByIndex(int index) {
-        EnvironmentDao.EnvironmentInfo info = getEnvironmentInfoAt(index);
-        activeEnvironmentId = (info != null) ? info.id : null;
+        EnvironmentInfo info = getEnvironmentInfoAt(index);
+        activeEnvironmentId = info != null ? info.id : null;
     }
 
     public boolean deleteEnvironment(int index) {
-        EnvironmentDao.EnvironmentInfo info = getEnvironmentInfoAt(index);
+        EnvironmentInfo info = getEnvironmentInfoAt(index);
         if (info == null) {
             return false;
         }
@@ -143,11 +162,10 @@ public class EnvironmentListManager {
             return;
         }
 
-        EnvironmentDao.EnvironmentInfo newInfo =
-            new EnvironmentDao.EnvironmentInfo(
-                environmentId,
-                DEFAULT_NEW_ENVIRONMENT_NAME
-            );
+        EnvironmentInfo newInfo = new EnvironmentInfo(
+            environmentId,
+            DEFAULT_NEW_ENVIRONMENT_NAME
+        );
         listModel.add(0, DEFAULT_NEW_ENVIRONMENT_NAME);
         environmentInfos.add(0, newInfo);
         list.ensureIndexIsVisible(0);
@@ -162,7 +180,7 @@ public class EnvironmentListManager {
         if (activeEnvironmentId == null || activeEnvironmentId <= 0) {
             return null;
         }
-        for (EnvironmentDao.EnvironmentInfo info : environmentInfos) {
+        for (EnvironmentInfo info : environmentInfos) {
             if (info.id == activeEnvironmentId) {
                 return info.name;
             }
@@ -198,10 +216,7 @@ public class EnvironmentListManager {
         return environmentVariables;
     }
 
-    private void startInlineEdit(
-        int index,
-        EnvironmentDao.EnvironmentInfo info
-    ) {
+    private void startInlineEdit(int index, EnvironmentInfo info) {
         Rectangle cellBounds = list.getCellBounds(index, index);
         if (cellBounds == null) {
             return;
@@ -264,7 +279,7 @@ public class EnvironmentListManager {
                     listModel.set(index, newName);
                     environmentInfos.set(
                         index,
-                        new EnvironmentDao.EnvironmentInfo(info.id, newName)
+                        new EnvironmentInfo(info.id, newName)
                     );
                 } else {
                     JOptionPane.showMessageDialog(
