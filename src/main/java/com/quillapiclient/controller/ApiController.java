@@ -164,6 +164,26 @@ public class ApiController {
         return sb.toString();
     }
 
+    /**
+     * Loads the latest saved response for a given item from the database.
+     * Encapsulates the request-to-response lookup so callers don't touch DAOs directly.
+     *
+     * @param itemId the item ID to look up
+     * @return the saved ApiResponse, or null if no response exists
+     */
+    public ApiResponse loadResponseForItem(int itemId) {
+        if (itemId <= 0) {
+            return null;
+        }
+
+        int requestId = RequestDao.getRequestIdByItemId(itemId);
+        if (requestId <= 0) {
+            return null;
+        }
+
+        return ResponseDao.getLatestResponseByRequestId(requestId);
+    }
+
     private void displayResponse(ApiResponse response) {
         // Use the unified ResponseFormatter utility
         String formattedResponse = ResponseFormatter.formatResponse(

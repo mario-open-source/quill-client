@@ -13,7 +13,6 @@ import com.quillapiclient.db.CollectionDao;
 import com.quillapiclient.db.EnvironmentDao;
 import com.quillapiclient.db.EventDao;
 import com.quillapiclient.db.RequestDao;
-import com.quillapiclient.db.ResponseDao;
 import com.quillapiclient.objects.Request;
 import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.utility.OpenFileAction;
@@ -179,46 +178,25 @@ public class Views {
      * Shows "There is no response for this request" if no response exists.
      */
     private void loadAndDisplayResponse() {
-        if (currentItemId <= 0) {
-            responsePanel.setResponse(ResponseFormatter.NO_RESPONSE_MESSAGE);
-            responsePanel.setErrorState(false);
-            responsePanel.resetStatusDurationSize();
-            return;
-        }
-
-        // Get the request ID from the item ID
-        int requestId = RequestDao.getRequestIdByItemId(currentItemId);
-        if (requestId <= 0) {
-            responsePanel.setResponse(ResponseFormatter.NO_RESPONSE_MESSAGE);
-            responsePanel.setErrorState(false);
-            responsePanel.resetStatusDurationSize();
-            return;
-        }
-
-        // Get the latest response for this request
-        ApiResponse response = ResponseDao.getLatestResponseByRequestId(
-            requestId
-        );
+        // Delegate data access to the controller
+        ApiResponse response = apiController.loadResponseForItem(currentItemId);
 
         if (response == null) {
             responsePanel.setResponse(ResponseFormatter.NO_RESPONSE_MESSAGE);
             responsePanel.setErrorState(false);
             responsePanel.resetStatusDurationSize();
         } else {
-            // Format and display the response using the unified formatter
             String formattedResponse = ResponseFormatter.formatResponse(
                 response,
                 "Response"
             );
             responsePanel.setResponse(formattedResponse);
 
-            // Update status and duration labels from the response
             responsePanel.setStatus(response.getStatusCode());
             responsePanel.setDuration(response.getDuration());
             responsePanel.setSize(
                 ResponseFormatter.formatSize(response.getBody().length())
             );
-
             responsePanel.setErrorState(!response.isSuccess());
         }
     }
