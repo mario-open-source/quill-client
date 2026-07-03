@@ -4,26 +4,19 @@ import com.quillapiclient.components.LeftPanel;
 import com.quillapiclient.components.MainWindow;
 import com.quillapiclient.components.RequestPanel;
 import com.quillapiclient.components.ResponsePanel;
-import com.quillapiclient.components.ScriptsPanel;
 import com.quillapiclient.controller.ApiController;
 import com.quillapiclient.controller.CollectionTreeManager;
 import com.quillapiclient.controller.EnvironmentListManager;
 import com.quillapiclient.controller.RequestController;
+import com.quillapiclient.objects.ExecutionRequest;
 import com.quillapiclient.objects.Request;
 import com.quillapiclient.server.ApiResponse;
 import com.quillapiclient.utility.OpenFileAction;
 import com.quillapiclient.utility.ResponseFormatter;
 import com.quillapiclient.utility.TableEditUtil;
-import java.awt.Rectangle;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.io.File;
-import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
-import javax.swing.JPopupMenu;
 import javax.swing.SwingWorker;
-import javax.swing.event.PopupMenuEvent;
-import javax.swing.event.PopupMenuListener;
 
 public class Views {
 
@@ -35,14 +28,13 @@ public class Views {
     private ApiController apiController;
     private RequestController requestController;
     private ResponsePanel responsePanel;
-    private int environmentContextIndex = -1;
-    private int currentItemId = -1; // Track the currently selected item ID
+    private int currentItemId = -1; // Track the currently selected item ID from tree selection
 
     public Views() {
         mainWindow = new MainWindow();
         responsePanel = new ResponsePanel();
-        apiController = new ApiController(responsePanel, requestController);
         requestController = new RequestController();
+        apiController = new ApiController(responsePanel, requestController);
         collectionManager = new CollectionTreeManager(requestController);
         environmentManager = new EnvironmentListManager();
         requestPanel = new RequestPanel();
@@ -72,9 +64,9 @@ public class Views {
                 requestPanel.getHeadersPanel().getTable()
             )
         );
-        collectionManager.addRequestItemIdSelectionListener(
-            this::setCurrentItemId
-        );
+        collectionManager.addRequestItemIdSelectionListener(itemId -> {
+            currentItemId = itemId;
+        });
         collectionManager.addRequestSelectionListener(
             this::handleRequestSelection
         );
@@ -92,7 +84,11 @@ public class Views {
             e -> environmentManager.createEnvironmentAndStartEditing()
         );
 
-        setupEnvironmentContextMenu();
+        // Delegate environment context menu setup to EnvironmentListManager
+        environmentManager.setupContextMenu();
+        environmentManager.setOnActiveEnvironmentChanged(
+            this::updateActiveEnvironmentIndicator
+        );
 
         // Connect send button to API controller
         requestPanel.getSendButton().addActionListener(e -> executeApiCall());
@@ -135,8 +131,9 @@ public class Views {
         loadAndDisplayResponse();
     }
 
-    private void setCurrentItemId(int itemId) {
-        this.currentItemId = itemId;
+    /** Returns the currently selected item ID from the tree selection. */
+    private int currentItemId() {
+        return currentItemId;
     }
 
     /**
@@ -145,7 +142,9 @@ public class Views {
      */
     private void loadAndDisplayResponse() {
         // Delegate data access to the controller
-        ApiResponse response = apiController.loadResponseForItem(currentItemId);
+        ApiResponse response = apiController.loadResponseForItem(
+            currentItemId()
+        );
 
         if (response == null) {
             responsePanel.setResponse(ResponseFormatter.NO_RESPONSE_MESSAGE);
@@ -168,7 +167,8 @@ public class Views {
     }
 
     private void saveRequest() {
-        if (currentItemId <= 0) {
+        int itemId = currentItemId();
+        if (itemId <= 0) {
             System.out.println("No request selected to save");
             return;
         }
@@ -179,28 +179,29 @@ public class Views {
         Request request = requestPanel.buildRequestFromUI();
 
         // Delegate persistence to the controller
-        boolean success = requestController.updateRequest(
-            currentItemId,
-            request
-        );
+        boolean success = requestController.updateRequest(itemId, request);
 
         if (success) {
             System.out.println("Request saved successfully");
             collectionManager.updateRequestNodeMethod(
-                currentItemId,
+                itemId,
                 request.getMethod()
             );
 
             // Save scripts (item-level if set, otherwise clear item-level so collection-level shows)
-            saveScriptsForCurrentItem();
+            requestController.saveScriptsForItem(
+                itemId,
+                requestPanel.getScriptsPanel().getPreRequestScript(),
+                requestPanel.getScriptsPanel().getTestScript()
+            );
 
             // Clear unsaved changes and reload from database via controller
             requestPanel.clearUnsavedChanges();
             Request updatedRequest = requestController.getRequestByItemId(
-                currentItemId
+                itemId
             );
             if (updatedRequest != null) {
-                requestPanel.populateFromRequest(updatedRequest, currentItemId);
+                requestPanel.populateFromRequest(updatedRequest, itemId);
             }
         } else {
             System.err.println("Failed to save request");
@@ -209,33 +210,21 @@ public class Views {
     }
 
     private void executeApiCall() {
-        // Gather all request data from the RequestPanel
-        String url = requestPanel.getUrl();
-        String method = requestPanel.getMethod();
-        String headersText = requestPanel.getHeaders();
-        String bodyText = requestPanel.getBody();
-        String paramsText = requestPanel.getParams();
-
-        // Get auth data from AuthPanel
-        String authType = requestPanel.getAuthPanel().getAuthType();
-        String username = requestPanel.getAuthPanel().getUsername();
-        String password = requestPanel.getAuthPanel().getPassword();
-        String token = requestPanel.getAuthPanel().getToken();
-
+        // Delegate parameter extraction to RequestPanel via the ExecutionRequest DTO
+        ExecutionRequest exec = requestPanel.buildExecutionRequest();
         int environmentId = environmentManager.getActiveEnvironmentId();
 
-        // Execute the API call through the controller, passing the current item ID
         apiController.executeApiCall(
-            url,
-            method,
-            headersText,
-            bodyText,
-            authType,
-            username,
-            password,
-            token,
-            paramsText,
-            currentItemId,
+            exec.url,
+            exec.method,
+            exec.headersText,
+            exec.bodyText,
+            exec.authType,
+            exec.username,
+            exec.password,
+            exec.token,
+            exec.paramsText,
+            currentItemId(),
             environmentId
         );
     }
@@ -250,126 +239,5 @@ public class Views {
                 environmentManager.getActiveEnvironmentName()
             );
         }
-    }
-
-    private void saveScriptsForCurrentItem() {
-        if (currentItemId <= 0) return;
-
-        ScriptsPanel scriptsPanel = requestPanel.getScriptsPanel();
-        if (scriptsPanel == null) return;
-
-        requestController.saveScriptsForItem(
-            currentItemId,
-            scriptsPanel.getPreRequestScript(),
-            scriptsPanel.getTestScript()
-        );
-    }
-
-    private void setupEnvironmentContextMenu() {
-        JPopupMenu popupMenu = new JPopupMenu();
-        popupMenu.addPopupMenuListener(
-            new PopupMenuListener() {
-                @Override
-                public void popupMenuWillBecomeVisible(PopupMenuEvent e) {}
-
-                @Override
-                public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {}
-
-                @Override
-                public void popupMenuCanceled(PopupMenuEvent e) {}
-            }
-        );
-        JMenuItem activateItem = new JMenuItem("Activate environment");
-        activateItem.addActionListener(e -> activateEnvironmentFromContext());
-        popupMenu.add(activateItem);
-
-        JMenuItem deleteItem = new JMenuItem("Delete environment");
-        deleteItem.addActionListener(e -> deleteEnvironmentFromContext());
-        popupMenu.add(deleteItem);
-
-        environmentManager.getList().addMouseListener(
-            new MouseAdapter() {
-                @Override
-                public void mousePressed(MouseEvent e) {
-                    maybeShowEnvironmentPopup(e, popupMenu, activateItem);
-                }
-
-                @Override
-                public void mouseReleased(MouseEvent e) {
-                    maybeShowEnvironmentPopup(e, popupMenu, activateItem);
-                }
-            }
-        );
-    }
-
-    private void maybeShowEnvironmentPopup(
-        MouseEvent event,
-        JPopupMenu popupMenu,
-        JMenuItem activateItem
-    ) {
-        if (!event.isPopupTrigger()) {
-            return;
-        }
-
-        int index = environmentManager
-            .getList()
-            .locationToIndex(event.getPoint());
-        if (index < 0) {
-            return;
-        }
-
-        Rectangle cellBounds = environmentManager
-            .getList()
-            .getCellBounds(index, index);
-        if (cellBounds == null || !cellBounds.contains(event.getPoint())) {
-            return;
-        }
-
-        environmentContextIndex = index;
-        EnvironmentListManager.EnvironmentInfo info =
-            environmentManager.getEnvironmentInfoAt(index);
-        boolean isActive =
-            info != null &&
-            info.id == environmentManager.getActiveEnvironmentId();
-        activateItem.setEnabled(!isActive);
-        activateItem.setText(
-            isActive ? "Environment Active" : "Activate environment"
-        );
-        popupMenu.show(
-            environmentManager.getList(),
-            event.getX(),
-            event.getY()
-        );
-    }
-
-    private void activateEnvironmentFromContext() {
-        if (environmentContextIndex < 0) {
-            return;
-        }
-        environmentManager.setActiveEnvironmentByIndex(environmentContextIndex);
-        updateActiveEnvironmentIndicator();
-    }
-
-    private void deleteEnvironmentFromContext() {
-        if (environmentContextIndex < 0) {
-            return;
-        }
-        EnvironmentListManager.EnvironmentInfo info =
-            environmentManager.getEnvironmentInfoAt(environmentContextIndex);
-        if (info == null) {
-            return;
-        }
-        int confirm = JOptionPane.showConfirmDialog(
-            null,
-            "Delete environment \"" + info.name + "\"?",
-            "Confirm Delete",
-            JOptionPane.YES_NO_OPTION,
-            JOptionPane.WARNING_MESSAGE
-        );
-        if (confirm != JOptionPane.YES_OPTION) {
-            return;
-        }
-        environmentManager.deleteEnvironment(environmentContextIndex);
-        updateActiveEnvironmentIndicator();
     }
 }

@@ -21,11 +21,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.DefaultListModel;
 import javax.swing.JLayeredPane;
 import javax.swing.JList;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
+import javax.swing.JPopupMenu;
 import javax.swing.JRootPane;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
 
 public class EnvironmentListManager {
 
@@ -63,6 +67,8 @@ public class EnvironmentListManager {
     private final DefaultListModel<String> listModel;
     private final java.util.List<EnvironmentInfo> environmentInfos;
     private Integer activeEnvironmentId;
+    private int contextMenuIndex = -1;
+    private Runnable onActiveEnvironmentChanged;
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private static final String DEFAULT_NEW_ENVIRONMENT_NAME =
         "New Environment";
@@ -185,6 +191,127 @@ public class EnvironmentListManager {
     public void setActiveEnvironmentByIndex(int index) {
         EnvironmentInfo info = getEnvironmentInfoAt(index);
         activeEnvironmentId = info != null ? info.id : null;
+        notifyActiveEnvironmentChanged();
+    }
+
+    /**
+     * Registers a callback that fires after the active environment changes
+     * (via setActiveEnvironmentByIndex, activate, or delete).
+     */
+    public void setOnActiveEnvironmentChanged(Runnable callback) {
+        this.onActiveEnvironmentChanged = callback;
+    }
+
+    private void notifyActiveEnvironmentChanged() {
+        if (onActiveEnvironmentChanged != null) {
+            onActiveEnvironmentChanged.run();
+        }
+    }
+
+    /**
+     * Sets up the right-click context menu on the environment list.
+     * Moved from Views.java to keep environment UI logic co-located with
+     * the list it owns.
+     */
+    public void setupContextMenu() {
+        JPopupMenu popupMenu = new JPopupMenu();
+        popupMenu.addPopupMenuListener(
+            new PopupMenuListener() {
+                @Override
+                public void popupMenuWillBecomeVisible(PopupMenuEvent e) {}
+
+                @Override
+                public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {}
+
+                @Override
+                public void popupMenuCanceled(PopupMenuEvent e) {}
+            }
+        );
+
+        JMenuItem activateItem = new JMenuItem("Activate environment");
+        activateItem.addActionListener(e -> activateEnvironmentFromContext());
+        popupMenu.add(activateItem);
+
+        JMenuItem deleteItem = new JMenuItem("Delete environment");
+        deleteItem.addActionListener(e -> deleteEnvironmentFromContext());
+        popupMenu.add(deleteItem);
+
+        list.addMouseListener(
+            new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent e) {
+                    maybeShowPopup(e, popupMenu, activateItem);
+                }
+
+                @Override
+                public void mouseReleased(MouseEvent e) {
+                    maybeShowPopup(e, popupMenu, activateItem);
+                }
+            }
+        );
+    }
+
+    private void maybeShowPopup(
+        MouseEvent event,
+        JPopupMenu popupMenu,
+        JMenuItem activateItem
+    ) {
+        if (!event.isPopupTrigger()) {
+            return;
+        }
+
+        int index = list.locationToIndex(event.getPoint());
+        if (index < 0) {
+            return;
+        }
+
+        Rectangle cellBounds = list.getCellBounds(index, index);
+        if (cellBounds == null || !cellBounds.contains(event.getPoint())) {
+            return;
+        }
+
+        contextMenuIndex = index;
+        EnvironmentInfo info = getEnvironmentInfoAt(index);
+        boolean isActive =
+            info != null && info.id == getActiveEnvironmentIdAsInt();
+        activateItem.setEnabled(!isActive);
+        activateItem.setText(
+            isActive ? "Environment Active" : "Activate environment"
+        );
+        popupMenu.show(list, event.getX(), event.getY());
+    }
+
+    private void activateEnvironmentFromContext() {
+        if (contextMenuIndex < 0) {
+            return;
+        }
+        setActiveEnvironmentByIndex(contextMenuIndex);
+    }
+
+    private void deleteEnvironmentFromContext() {
+        if (contextMenuIndex < 0) {
+            return;
+        }
+        EnvironmentInfo info = getEnvironmentInfoAt(contextMenuIndex);
+        if (info == null) {
+            return;
+        }
+        int confirm = JOptionPane.showConfirmDialog(
+            null,
+            "Delete environment \"" + info.name + "\"?",
+            "Confirm Delete",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE
+        );
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+        deleteEnvironment(contextMenuIndex);
+        notifyActiveEnvironmentChanged();
+    }
+
+    private int getActiveEnvironmentIdAsInt() {
+        return activeEnvironmentId != null ? activeEnvironmentId : -1;
     }
 
     public boolean deleteEnvironment(int index) {
@@ -200,6 +327,7 @@ public class EnvironmentListManager {
             }
             listModel.remove(index);
             environmentInfos.remove(index);
+            notifyActiveEnvironmentChanged();
         }
         return deleted;
     }

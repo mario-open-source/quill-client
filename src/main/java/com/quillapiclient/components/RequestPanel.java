@@ -313,6 +313,29 @@ public class RequestPanel {
         return scriptsPanel;
     }
 
+    /** Returns the currently displayed item ID. */
+    public int getCurrentItemId() {
+        return currentItemId;
+    }
+
+    /**
+     * Gathers all execution parameters from the UI into a single DTO.
+     * Callers no longer need to extract individual fields from the panel.
+     */
+    public ExecutionRequest buildExecutionRequest() {
+        return new ExecutionRequest(
+            getUrl(),
+            getMethod(),
+            getHeaders(),
+            getBody(),
+            getParams(),
+            authPanel.getAuthType(),
+            authPanel.getUsername(),
+            authPanel.getPassword(),
+            authPanel.getToken()
+        );
+    }
+
     /**
      * Builds a Request object from all UI components
      */
