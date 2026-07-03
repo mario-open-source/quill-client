@@ -1,6 +1,7 @@
 package com.quillapiclient.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.quillapiclient.components.EnvironmentVariablesWindow;
 import com.quillapiclient.db.EnvironmentDao;
 import com.quillapiclient.objects.PostmanEnvironment;
 import com.quillapiclient.objects.PostmanEnvironmentValue;
@@ -9,6 +10,8 @@ import java.awt.Rectangle;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -69,6 +72,41 @@ public class EnvironmentListManager {
         list = new JList<>(listModel);
         environmentInfos = new java.util.ArrayList<>();
         activeEnvironmentId = null;
+        setupDoubleClickToOpenVariables();
+    }
+
+    /**
+     * Opens the {@link EnvironmentVariablesWindow} on double-click of an environment list entry.
+     */
+    private void setupDoubleClickToOpenVariables() {
+        list.addMouseListener(
+            new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (e.getClickCount() == 2 && !e.isPopupTrigger()) {
+                        int index = list.locationToIndex(e.getPoint());
+                        if (index < 0) {
+                            return;
+                        }
+                        Rectangle cellBounds = list.getCellBounds(index, index);
+                        if (
+                            cellBounds == null ||
+                            !cellBounds.contains(e.getPoint())
+                        ) {
+                            return;
+                        }
+                        EnvironmentInfo info = getEnvironmentInfoAt(index);
+                        if (info != null) {
+                            new EnvironmentVariablesWindow(
+                                info.id,
+                                info.name,
+                                EnvironmentListManager.this
+                            );
+                        }
+                    }
+                }
+            }
+        );
     }
 
     public void loadEnvironmentFile(File file) {

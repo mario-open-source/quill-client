@@ -1,6 +1,5 @@
 package com.quillapiclient;
 
-import com.quillapiclient.components.EnvironmentVariablesWindow;
 import com.quillapiclient.components.LeftPanel;
 import com.quillapiclient.components.MainWindow;
 import com.quillapiclient.components.RequestPanel;
@@ -94,41 +93,6 @@ public class Views {
         );
 
         setupEnvironmentContextMenu();
-
-        // Open environment variables window on double-click
-        environmentManager.getList().addMouseListener(
-            new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    if (e.getClickCount() == 2 && !e.isPopupTrigger()) {
-                        int index = environmentManager
-                            .getList()
-                            .locationToIndex(e.getPoint());
-                        if (index < 0) {
-                            return;
-                        }
-                        Rectangle cellBounds = environmentManager
-                            .getList()
-                            .getCellBounds(index, index);
-                        if (
-                            cellBounds == null ||
-                            !cellBounds.contains(e.getPoint())
-                        ) {
-                            return;
-                        }
-                        EnvironmentListManager.EnvironmentInfo info =
-                            environmentManager.getEnvironmentInfoAt(index);
-                        if (info != null) {
-                            new EnvironmentVariablesWindow(
-                                info.id,
-                                info.name,
-                                environmentManager
-                            );
-                        }
-                    }
-                }
-            }
-        );
 
         // Connect send button to API controller
         requestPanel.getSendButton().addActionListener(e -> executeApiCall());
