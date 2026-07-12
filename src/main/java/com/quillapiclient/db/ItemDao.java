@@ -210,6 +210,197 @@ public class ItemDao {
     }
 
     /**
+     * Gets the count of child items for a given parent item.
+     *
+     * @param parentId The parent item ID
+     * @return Number of direct children
+     */
+    public static int getChildCount(int parentId) {
+        Connection conn = LiteConnection.getConnection();
+
+        try (
+            PreparedStatement stmt = conn.prepareStatement(
+                "SELECT COUNT(*) FROM items WHERE parent_id = ?"
+            )
+        ) {
+            stmt.setInt(1, parentId);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            System.err.println(
+                "Error counting child items: " + e.getMessage()
+            );
+            e.printStackTrace();
+        }
+
+        return 0;
+    }
+
+    /**
+     * Gets the count of root-level items (no parent) for a collection.
+     *
+     * @param collectionId The collection ID
+     * @return Number of root-level items
+     */
+    public static int getRootItemCount(int collectionId) {
+        Connection conn = LiteConnection.getConnection();
+
+        try (
+            PreparedStatement stmt = conn.prepareStatement(
+                "SELECT COUNT(*) FROM items WHERE collection_id = ? AND parent_id IS NULL"
+            )
+        ) {
+            stmt.setInt(1, collectionId);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            System.err.println(
+                "Error counting root items: " + e.getMessage()
+            );
+            e.printStackTrace();
+        }
+
+        return 0;
+    }
+
+    /**
+     * Gets child items for a given parent, with pagination.
+     * Includes the HTTP method from the requests table.
+     *
+     * @param parentId The parent item ID
+     * @param offset   Starting offset for pagination
+     * @param limit    Maximum number of items to return
+     * @return List of ItemInfo objects (with method stored in a synthetic field)
+     */
+    public static List<PaginatedItemInfo> getChildItemsPaginated(
+        int parentId,
+        int offset,
+        int limit
+    ) {
+        List<PaginatedItemInfo> items = new ArrayList<>();
+        Connection conn = LiteConnection.getConnection();
+
+        try (
+            PreparedStatement stmt = conn.prepareStatement(
+                "SELECT i.id, i.name, i.item_type, r.method " +
+                    "FROM items i " +
+                    "LEFT JOIN requests r ON i.id = r.item_id " +
+                    "WHERE i.parent_id = ? " +
+                    "ORDER BY i.id " +
+                    "LIMIT ? OFFSET ?"
+            )
+        ) {
+            stmt.setInt(1, parentId);
+            stmt.setInt(2, limit);
+            stmt.setInt(3, offset);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                String method = rs.getString("method");
+                items.add(
+                    new PaginatedItemInfo(
+                        rs.getInt("id"),
+                        rs.getString("name"),
+                        rs.getString("item_type"),
+                        method != null && !method.isEmpty()
+                            ? method.toUpperCase()
+                            : null
+                    )
+                );
+            }
+        } catch (SQLException e) {
+            System.err.println(
+                "Error getting paginated child items: " + e.getMessage()
+            );
+            e.printStackTrace();
+        }
+
+        return items;
+    }
+
+    /**
+     * Gets root-level items for a collection, with pagination.
+     * Includes the HTTP method from the requests table.
+     *
+     * @param collectionId The collection ID
+     * @param offset       Starting offset for pagination
+     * @param limit        Maximum number of items to return
+     * @return List of PaginatedItemInfo objects
+     */
+    public static List<PaginatedItemInfo> getRootItemsPaginated(
+        int collectionId,
+        int offset,
+        int limit
+    ) {
+        List<PaginatedItemInfo> items = new ArrayList<>();
+        Connection conn = LiteConnection.getConnection();
+
+        try (
+            PreparedStatement stmt = conn.prepareStatement(
+                "SELECT i.id, i.name, i.item_type, r.method " +
+                    "FROM items i " +
+                    "LEFT JOIN requests r ON i.id = r.item_id " +
+                    "WHERE i.collection_id = ? AND i.parent_id IS NULL " +
+                    "ORDER BY i.id " +
+                    "LIMIT ? OFFSET ?"
+            )
+        ) {
+            stmt.setInt(1, collectionId);
+            stmt.setInt(2, limit);
+            stmt.setInt(3, offset);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                String method = rs.getString("method");
+                items.add(
+                    new PaginatedItemInfo(
+                        rs.getInt("id"),
+                        rs.getString("name"),
+                        rs.getString("item_type"),
+                        method != null && !method.isEmpty()
+                            ? method.toUpperCase()
+                            : null
+                    )
+                );
+            }
+        } catch (SQLException e) {
+            System.err.println(
+                "Error getting paginated root items: " + e.getMessage()
+            );
+            e.printStackTrace();
+        }
+
+        return items;
+    }
+
+    /**
+     * Data class for paginated item information, including the HTTP method.
+     */
+    public static class PaginatedItemInfo {
+
+        public final int id;
+        public final String name;
+        public final String itemType;
+        public final String method; // null for folders, HTTP method string for requests
+
+        public PaginatedItemInfo(
+            int id,
+            String name,
+            String itemType,
+            String method
+        ) {
+            this.id = id;
+            this.name = name;
+            this.itemType = itemType;
+            this.method = method;
+        }
+    }
+
+    /**
      * Gets the item ID by item name within a collection.
      * Note: This may return multiple results if names are not unique.
      * For now, returns the first match.

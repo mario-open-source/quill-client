@@ -12,7 +12,9 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import javax.swing.*;
+import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeSelectionEvent;
+import javax.swing.event.TreeWillExpandListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellEditor;
 import javax.swing.tree.DefaultTreeCellRenderer;
@@ -21,6 +23,7 @@ import javax.swing.tree.TreePath;
 
 public class CollectionTreeManager {
 
+    private static final int PAGE_SIZE = 100;
     private JTree tree;
     private int currentCollectionId = -1;
     private final RequestController requestController;
@@ -55,6 +58,9 @@ public class CollectionTreeManager {
             this::handleRenameItem,
             this::exportCollection
         );
+
+        // Lazy-load children when a node is expanded for the first time
+        setupLazyLoading();
     }
 
     public void addTreeSelectionHandler(Consumer<TreeSelectionEvent> handler) {
@@ -91,6 +97,13 @@ public class CollectionTreeManager {
         }
 
         Object userObject = selectedNode.getUserObject();
+
+        // Handle "Show more..." pagination clicks
+        if (userObject instanceof LoadMoreData loadMore) {
+            handleLoadMoreClick(selectedNode, loadMore);
+            return;
+        }
+
         if (!(userObject instanceof TreeNodeData nodeData)) {
             return;
         }
@@ -114,6 +127,55 @@ public class CollectionTreeManager {
             requestSelectionListeners
         )) {
             listener.accept(selectedRequest);
+        }
+    }
+
+    /**
+     * Handles clicks on the "Show more..." pagination node.
+     * Removes the node, loads the next page, and expands the parent.
+     */
+    private void handleLoadMoreClick(
+        DefaultMutableTreeNode moreNode,
+        LoadMoreData loadMore
+    ) {
+        DefaultMutableTreeNode parentNode =
+            (DefaultMutableTreeNode) moreNode.getParent();
+        if (parentNode == null) {
+            return;
+        }
+
+        // Remove the "Show more..." node
+        moreNode.removeFromParent();
+
+        // Load the next page
+        loadPage(
+            parentNode,
+            loadMore.collectionId,
+            loadMore.parentId,
+            loadMore.isCollectionRoot,
+            loadMore.offset,
+            loadMore.offset + loadMore.remaining
+        );
+
+        // Notify the model and expand to show new items
+        DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+        model.nodeStructureChanged(parentNode);
+        tree.expandPath(new TreePath(parentNode.getPath()));
+
+        // Scroll to the first newly loaded item
+        if (parentNode.getChildCount() > 0) {
+            int newIndex = parentNode.getChildCount() - 1;
+            // Find the index of the last loaded page's first item
+            int firstNewIndex = Math.max(
+                0,
+                newIndex - PAGE_SIZE + 1
+            );
+            DefaultMutableTreeNode firstNew =
+                (DefaultMutableTreeNode) parentNode.getChildAt(
+                    firstNewIndex
+                );
+            TreePath firstNewPath = new TreePath(firstNew.getPath());
+            tree.scrollPathToVisible(firstNewPath);
         }
     }
 
@@ -338,6 +400,13 @@ public class CollectionTreeManager {
         );
         if (collectionNode == null) return;
 
+        // Force-load the collection's children if it hasn't been expanded yet.
+        // This ensures findNodeDepthFirst can locate descendant folders.
+        if (hasDummyChild(collectionNode)) {
+            forceLoadNode(collectionNode, collectionId, -1, true);
+            model.nodeStructureChanged(collectionNode);
+        }
+
         DefaultMutableTreeNode parentNode = collectionNode;
 
         if (parentFolderId != null) {
@@ -350,6 +419,16 @@ public class CollectionTreeManager {
             );
 
             if (folderNode != null) {
+                // Force-load the folder's children if it hasn't been expanded yet
+                if (hasDummyChild(folderNode)) {
+                    forceLoadNode(
+                        folderNode,
+                        collectionId,
+                        parentFolderId,
+                        false
+                    );
+                    model.nodeStructureChanged(folderNode);
+                }
                 parentNode = folderNode;
             }
         }
@@ -361,6 +440,38 @@ public class CollectionTreeManager {
         tree.expandPath(path.getParentPath());
         tree.scrollPathToVisible(path);
         tree.setSelectionPath(path);
+    }
+
+    /**
+     * Force-loads children of a node, bypassing the dummy check.
+     * Used when we need to add a child to a node that hasn't been expanded.
+     */
+    private void forceLoadNode(
+        DefaultMutableTreeNode node,
+        int collectionId,
+        int parentId,
+        boolean isCollectionRoot
+    ) {
+        // Remove dummy if present
+        if (hasDummyChild(node)) {
+            node.removeAllChildren();
+        }
+
+        int total = isCollectionRoot
+            ? ItemDao.getRootItemCount(collectionId)
+            : ItemDao.getChildCount(parentId);
+
+        if (total <= PAGE_SIZE) {
+            loadChildrenForNode(
+                node,
+                collectionId,
+                parentId,
+                isCollectionRoot,
+                false
+            );
+        } else {
+            loadPage(node, collectionId, parentId, isCollectionRoot, 0, total);
+        }
     }
 
     private DefaultMutableTreeNode findNodeDepthFirst(
@@ -394,6 +505,240 @@ public class CollectionTreeManager {
             tree.setCellEditor(new NodeNameTreeCellEditor(tree, renderer));
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Lazy tree loading
+    // -----------------------------------------------------------------------
+
+    /**
+     * Registers a listener that loads children on first expansion
+     * and handles paginated "Show more..." clicks.
+     */
+    private void setupLazyLoading() {
+        tree.addTreeWillExpandListener(
+            new TreeWillExpandListener() {
+                @Override
+                public void treeWillExpand(TreeExpansionEvent event) {
+                    DefaultMutableTreeNode node =
+                        (DefaultMutableTreeNode) event
+                            .getPath()
+                            .getLastPathComponent();
+
+                    if (!hasDummyChild(node)) {
+                        return; // already loaded
+                    }
+
+                    // Remove the dummy
+                    node.removeAllChildren();
+
+                    // Determine what to load
+                    int parentId;
+                    int collectionId;
+                    boolean isCollectionRoot;
+
+                    Object uo = node.getUserObject();
+                    if (uo instanceof CollectionRootData crd) {
+                        collectionId = crd.collectionId;
+                        parentId = -1; // sentinel: load root-level items
+                        isCollectionRoot = true;
+                    } else if (
+                        uo instanceof TreeNodeData nd &&
+                        "folder".equals(nd.itemType)
+                    ) {
+                        collectionId = nd.collectionId != null
+                            ? nd.collectionId
+                            : -1;
+                        parentId = nd.itemId;
+                        isCollectionRoot = false;
+                    } else {
+                        return;
+                    }
+
+                    int total = isCollectionRoot
+                        ? ItemDao.getRootItemCount(collectionId)
+                        : ItemDao.getChildCount(parentId);
+
+                    if (total <= PAGE_SIZE) {
+                        // Small enough — load all at once
+                        loadChildrenForNode(
+                            node,
+                            collectionId,
+                            parentId,
+                            isCollectionRoot,
+                            false
+                        );
+                    } else {
+                        // Large — load first page + "Show more..." node
+                        loadPage(
+                            node,
+                            collectionId,
+                            parentId,
+                            isCollectionRoot,
+                            0,
+                            total
+                        );
+                    }
+
+                    // Notify the model
+                    DefaultTreeModel model =
+                        (DefaultTreeModel) tree.getModel();
+                    model.nodeStructureChanged(node);
+                }
+
+                @Override
+                public void treeWillCollapse(TreeExpansionEvent event) {
+                    // No-op: keep children in memory for fast re-expand.
+                    // To free memory on collapse, uncomment the code below:
+                    // DefaultMutableTreeNode node = ...;
+                    // node.removeAllChildren();
+                    // node.add(new DefaultMutableTreeNode(new DummyData()));
+                }
+            }
+        );
+    }
+
+    /** Returns true if the first (and only) child of this node is a DummyData. */
+    private static boolean hasDummyChild(DefaultMutableTreeNode node) {
+        return node.getChildCount() == 1 &&
+            ((DefaultMutableTreeNode) node.getFirstChild()).getUserObject()
+                instanceof DummyData;
+    }
+
+    /**
+     * Loads ALL children for a node (when total ≤ PAGE_SIZE).
+     * Each folder child gets its own dummy so it can be lazily expanded later.
+     */
+    private void loadChildrenForNode(
+        DefaultMutableTreeNode parentNode,
+        int collectionId,
+        int parentId,
+        boolean isCollectionRoot,
+        boolean append
+    ) {
+        List<ItemDao.ItemInfo> children;
+        if (isCollectionRoot) {
+            children = new ArrayList<>(ItemDao.getRootItems(collectionId));
+        } else {
+            children = new ArrayList<>(ItemDao.getChildItems(parentId));
+        }
+
+        // If appending (used by force-load before insert), skip nodes already present
+        if (append && parentNode.getChildCount() > 0) {
+            java.util.Set<Integer> existingIds = new java.util.HashSet<>();
+            for (int i = 0; i < parentNode.getChildCount(); i++) {
+                DefaultMutableTreeNode child =
+                    (DefaultMutableTreeNode) parentNode.getChildAt(i);
+                Object uo = child.getUserObject();
+                if (uo instanceof TreeNodeData nd) {
+                    existingIds.add(nd.itemId);
+                }
+            }
+            children.removeIf(info -> existingIds.contains(info.id));
+        }
+
+        for (ItemDao.ItemInfo info : children) {
+            DefaultMutableTreeNode childNode = createTreeNode(info);
+            parentNode.add(childNode);
+            if ("folder".equals(info.itemType)) {
+                childNode.add(
+                    new DefaultMutableTreeNode(new DummyData())
+                );
+            }
+        }
+    }
+
+    /**
+     * Loads a single page of children and appends a "Show more..." node
+     * if there are remaining items.
+     */
+    private void loadPage(
+        DefaultMutableTreeNode parentNode,
+        int collectionId,
+        int parentId,
+        boolean isCollectionRoot,
+        int offset,
+        int total
+    ) {
+        List<ItemDao.PaginatedItemInfo> page = isCollectionRoot
+            ? ItemDao.getRootItemsPaginated(collectionId, offset, PAGE_SIZE)
+            : ItemDao.getChildItemsPaginated(parentId, offset, PAGE_SIZE);
+
+        for (ItemDao.PaginatedItemInfo info : page) {
+            DefaultMutableTreeNode childNode = createTreeNode(info);
+            parentNode.add(childNode);
+            if ("folder".equals(info.itemType)) {
+                childNode.add(
+                    new DefaultMutableTreeNode(new DummyData())
+                );
+            }
+        }
+
+        int remaining = total - offset - page.size();
+        if (remaining > 0) {
+            DefaultMutableTreeNode moreNode = new DefaultMutableTreeNode(
+                new LoadMoreData(
+                    parentId,
+                    offset + page.size(),
+                    remaining,
+                    collectionId,
+                    isCollectionRoot
+                )
+            );
+            parentNode.add(moreNode);
+        }
+    }
+
+    /**
+     * Creates a tree node from an ItemInfo (used for small, non-paginated loads).
+     */
+    private DefaultMutableTreeNode createTreeNode(ItemDao.ItemInfo info) {
+        TreeNodeData nodeData;
+        if ("request".equals(info.itemType)) {
+            // Method is not available in ItemInfo — use "GET" as fallback.
+            // The method will be corrected when the user selects the request.
+            nodeData = buildRequestNodeData(
+                info.id,
+                info.name,
+                null,
+                "GET"
+            );
+        } else {
+            nodeData = new TreeNodeData(
+                info.id,
+                info.name,
+                info.itemType,
+                info.name
+            );
+        }
+        return new DefaultMutableTreeNode(nodeData);
+    }
+
+    /**
+     * Creates a tree node from a PaginatedItemInfo (which includes the HTTP method).
+     */
+    private DefaultMutableTreeNode createTreeNode(
+        ItemDao.PaginatedItemInfo info
+    ) {
+        TreeNodeData nodeData;
+        if ("request".equals(info.itemType)) {
+            nodeData = buildRequestNodeData(
+                info.id,
+                info.name,
+                info.method,
+                "GET"
+            );
+        } else {
+            nodeData = new TreeNodeData(
+                info.id,
+                info.name,
+                info.itemType,
+                info.name
+            );
+        }
+        return new DefaultMutableTreeNode(nodeData);
+    }
+
+    // -----------------------------------------------------------------------
 
     public void createCollectionAndStartEditing() {
         String defaultName = "New Collection";
@@ -592,8 +937,8 @@ public class CollectionTreeManager {
     }
 
     /**
-     * Builds the tree structure from the database for the given collection.
-     * Uses batch loading to avoid N+1 query problem.
+     * Builds a collection root node with a dummy child that triggers
+     * lazy loading on first expansion.
      *
      * @param collectionId The collection ID in the database
      * @param collectionName The name to display as root
@@ -603,67 +948,15 @@ public class CollectionTreeManager {
         int collectionId,
         String collectionName
     ) {
-        // Use CollectionRootData to track collection ID in the root node
         DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode(
             new CollectionRootData(collectionId, collectionName)
         );
 
-        // Load ALL items for the collection in a single query (solves N+1 problem)
-        CollectionDao.CollectionItemsData itemsData =
-            CollectionDao.getAllItemsForCollection(collectionId);
-
-        // Get root items (items with no parent)
-        java.util.List<ItemDao.ItemInfo> rootItems = itemsData.getRootItems();
-
-        // Build tree nodes recursively using in-memory data
-        for (ItemDao.ItemInfo itemInfo : rootItems) {
-            rootNode.add(buildNodeFromMemory(itemInfo, itemsData));
-        }
+        // Add a dummy child so the expand arrow appears.
+        // Real children are loaded on first expansion via the lazy-load listener.
+        rootNode.add(new DefaultMutableTreeNode(new DummyData()));
 
         return rootNode;
-    }
-
-    /**
-     * Recursively builds a tree node from in-memory item data.
-     * This avoids multiple database queries by using pre-loaded data.
-     *
-     * @param itemInfo The item information
-     * @param itemsData The collection items data (contains all items and relationships)
-     * @return The tree node
-     */
-    private DefaultMutableTreeNode buildNodeFromMemory(
-        ItemDao.ItemInfo itemInfo,
-        CollectionDao.CollectionItemsData itemsData
-    ) {
-        // If this item is a request, get the method from the pre-loaded map
-        TreeNodeData nodeData;
-        if ("request".equals(itemInfo.itemType)) {
-            String method = itemsData.getRequestMethod(itemInfo.id);
-            nodeData = buildRequestNodeData(
-                itemInfo.id,
-                itemInfo.name,
-                method,
-                null
-            );
-        } else {
-            nodeData = new TreeNodeData(
-                itemInfo.id,
-                itemInfo.name,
-                itemInfo.itemType,
-                itemInfo.name
-            );
-        }
-        DefaultMutableTreeNode node = new DefaultMutableTreeNode(nodeData);
-
-        // Get child items from in-memory map (no database query!)
-        java.util.List<ItemDao.ItemInfo> childItems = itemsData.getChildItems(
-            itemInfo.id
-        );
-        for (ItemDao.ItemInfo childInfo : childItems) {
-            node.add(buildNodeFromMemory(childInfo, itemsData));
-        }
-
-        return node;
     }
 
     private static TreeNodeData buildRequestNodeData(
@@ -960,6 +1253,49 @@ public class CollectionTreeManager {
         @Override
         public String toString() {
             return displayName;
+        }
+    }
+
+    /**
+     * Sentinal user-object that marks a tree node whose children haven't
+     * been loaded yet.  Exactly one such node is placed as the only child
+     * of a folder or collection root so that Swing draws the expand arrow.
+     */
+    static class DummyData {
+        @Override
+        public String toString() {
+            return "Loading...";
+        }
+    }
+
+    /**
+     * User-object for the "Show more..." pagination node.
+     * Clicking this node loads the next page of children.
+     */
+    static class LoadMoreData {
+        final int parentId;
+        final int offset;
+        final int remaining;
+        final int collectionId;
+        final boolean isCollectionRoot;
+
+        LoadMoreData(
+            int parentId,
+            int offset,
+            int remaining,
+            int collectionId,
+            boolean isCollectionRoot
+        ) {
+            this.parentId = parentId;
+            this.offset = offset;
+            this.remaining = remaining;
+            this.collectionId = collectionId;
+            this.isCollectionRoot = isCollectionRoot;
+        }
+
+        @Override
+        public String toString() {
+            return "▼ Show more (" + remaining + " remaining)";
         }
     }
 
