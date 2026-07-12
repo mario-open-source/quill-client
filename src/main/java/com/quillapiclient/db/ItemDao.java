@@ -210,6 +210,162 @@ public class ItemDao {
     }
 
     /**
+     * Counts root-level items (no parent) for a collection.
+     */
+    public static int getRootItemCount(int collectionId) {
+        Connection conn = LiteConnection.getConnection();
+
+        try (
+            PreparedStatement stmt = conn.prepareStatement(
+                "SELECT COUNT(*) FROM items WHERE collection_id = ? AND parent_id IS NULL"
+            )
+        ) {
+            stmt.setInt(1, collectionId);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            System.err.println(
+                "Error counting root items: " + e.getMessage()
+            );
+            e.printStackTrace();
+        }
+
+        return 0;
+    }
+
+    /**
+     * Counts direct children of a parent item.
+     */
+    public static int getChildCount(int parentId) {
+        Connection conn = LiteConnection.getConnection();
+
+        try (
+            PreparedStatement stmt = conn.prepareStatement(
+                "SELECT COUNT(*) FROM items WHERE parent_id = ?"
+            )
+        ) {
+            stmt.setInt(1, parentId);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            System.err.println(
+                "Error counting child items: " + e.getMessage()
+            );
+            e.printStackTrace();
+        }
+
+        return 0;
+    }
+
+    /**
+     * Loads a page of root-level items for a collection, including HTTP method.
+     */
+    public static List<ChildItemInfo> getRootItemsPage(
+        int collectionId,
+        int offset,
+        int limit
+    ) {
+        return queryChildrenPage(
+            "SELECT i.id, i.name, i.item_type, r.method " +
+                "FROM items i " +
+                "LEFT JOIN requests r ON i.id = r.item_id " +
+                "WHERE i.collection_id = ? AND i.parent_id IS NULL " +
+                "ORDER BY i.id LIMIT ? OFFSET ?",
+            collectionId,
+            offset,
+            limit,
+            "Error getting root items page: "
+        );
+    }
+
+    /**
+     * Loads a page of direct children for a parent item, including HTTP method.
+     */
+    public static List<ChildItemInfo> getChildItemsPage(
+        int parentId,
+        int offset,
+        int limit
+    ) {
+        return queryChildrenPage(
+            "SELECT i.id, i.name, i.item_type, r.method " +
+                "FROM items i " +
+                "LEFT JOIN requests r ON i.id = r.item_id " +
+                "WHERE i.parent_id = ? " +
+                "ORDER BY i.id LIMIT ? OFFSET ?",
+            parentId,
+            offset,
+            limit,
+            "Error getting child items page: "
+        );
+    }
+
+    private static List<ChildItemInfo> queryChildrenPage(
+        String sql,
+        int idParam,
+        int offset,
+        int limit,
+        String errorPrefix
+    ) {
+        List<ChildItemInfo> items = new ArrayList<>();
+        Connection conn = LiteConnection.getConnection();
+
+        try (
+            PreparedStatement stmt = conn.prepareStatement(sql)
+        ) {
+            stmt.setInt(1, idParam);
+            stmt.setInt(2, limit);
+            stmt.setInt(3, offset);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                String method = rs.getString("method");
+                items.add(
+                    new ChildItemInfo(
+                        rs.getInt("id"),
+                        rs.getString("name"),
+                        rs.getString("item_type"),
+                        method != null && !method.isEmpty()
+                            ? method.toUpperCase()
+                            : null
+                    )
+                );
+            }
+        } catch (SQLException e) {
+            System.err.println(errorPrefix + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return items;
+    }
+
+    /**
+     * Lightweight item row used for lazy tree population (includes method for requests).
+     */
+    public static class ChildItemInfo {
+
+        public final int id;
+        public final String name;
+        public final String itemType;
+        public final String method;
+
+        public ChildItemInfo(
+            int id,
+            String name,
+            String itemType,
+            String method
+        ) {
+            this.id = id;
+            this.name = name;
+            this.itemType = itemType;
+            this.method = method;
+        }
+    }
+
+    /**
      * Gets the item ID by item name within a collection.
      * Note: This may return multiple results if names are not unique.
      * For now, returns the first match.
