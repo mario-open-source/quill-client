@@ -12,7 +12,9 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import javax.swing.*;
+import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeSelectionEvent;
+import javax.swing.event.TreeWillExpandListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellEditor;
 import javax.swing.tree.DefaultTreeCellRenderer;
@@ -20,6 +22,18 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 
 public class CollectionTreeManager {
+
+    /**
+     * Sentinel child that marks a node whose real children have not been
+     * loaded from the database yet. It gives collapsed folders an expand
+     * handle without materializing their subtree.
+     */
+    private static final Object LOADING_PLACEHOLDER = new Object() {
+        @Override
+        public String toString() {
+            return "Loading...";
+        }
+    };
 
     private JTree tree;
     private int currentCollectionId = -1;
@@ -39,12 +53,32 @@ public class CollectionTreeManager {
             "Collections"
         );
         tree = new JTree(createTreeModel(emptyRoot));
+        // Large-model mode with a fixed row height uses a fixed-height layout
+        // cache, so the tree does not keep per-row bounds for thousands of nodes
+        tree.setLargeModel(true);
+        if (tree.getRowHeight() <= 0) {
+            tree.setRowHeight(22);
+        }
         // Set custom renderer to display methods with colors
         tree.setCellRenderer(
             new com.quillapiclient.components.MethodTreeCellRenderer()
         );
         setupInlineEditingSupport();
         tree.addTreeSelectionListener(this::handleTreeSelectionChanged);
+        tree.addTreeWillExpandListener(
+            new TreeWillExpandListener() {
+                @Override
+                public void treeWillExpand(TreeExpansionEvent event) {
+                    Object last = event.getPath().getLastPathComponent();
+                    if (last instanceof DefaultMutableTreeNode node) {
+                        loadChildrenIfNeeded(node);
+                    }
+                }
+
+                @Override
+                public void treeWillCollapse(TreeExpansionEvent event) {}
+            }
+        );
 
         // Add right-click context menu
         new CollectionTreeContextMenu(
@@ -309,7 +343,12 @@ public class CollectionTreeManager {
         addNodeToCollection(
             collectionId,
             parentFolderId,
-            buildRequestNodeData(itemId, requestName, method, "GET")
+            new TreeNodeData(
+                itemId,
+                requestName,
+                "request",
+                canonicalMethod(method, "GET")
+            )
         );
     }
 
@@ -322,7 +361,7 @@ public class CollectionTreeManager {
         addNodeToCollection(
             collectionId,
             parentFolderId,
-            new TreeNodeData(itemId, folderName, "folder", folderName)
+            new TreeNodeData(itemId, folderName, "folder", null)
         );
     }
 
@@ -354,13 +393,95 @@ public class CollectionTreeManager {
             }
         }
 
-        DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(nodeData);
-        model.insertNodeInto(newNode, parentNode, parentNode.getChildCount());
+        DefaultMutableTreeNode newNode;
+        if (hasUnloadedChildren(parentNode)) {
+            // The parent's children were never materialized. The new item is
+            // already in the database, so loading the level picks it up.
+            loadChildrenIfNeeded(parentNode);
+            newNode = findNodeDepthFirst(
+                parentNode,
+                uo ->
+                    uo instanceof TreeNodeData nd &&
+                    nd.itemId == nodeData.itemId
+            );
+            if (newNode == null) return;
+        } else {
+            newNode = new DefaultMutableTreeNode(nodeData);
+            model.insertNodeInto(
+                newNode,
+                parentNode,
+                parentNode.getChildCount()
+            );
+        }
 
         TreePath path = new TreePath(newNode.getPath());
         tree.expandPath(path.getParentPath());
         tree.scrollPathToVisible(path);
         tree.setSelectionPath(path);
+    }
+
+    /**
+     * Loads the children of a collection or folder node from the database the
+     * first time it is expanded, replacing the loading placeholder.
+     */
+    private void loadChildrenIfNeeded(DefaultMutableTreeNode node) {
+        if (!hasUnloadedChildren(node)) {
+            return;
+        }
+
+        int collectionId;
+        Integer parentId;
+        Object userObject = node.getUserObject();
+        if (userObject instanceof CollectionRootData rootData) {
+            collectionId = rootData.collectionId;
+            parentId = null;
+        } else if (
+            userObject instanceof TreeNodeData nodeData &&
+            "folder".equals(nodeData.itemType)
+        ) {
+            collectionId = -1; // child lookup only needs the parent ID
+            parentId = nodeData.itemId;
+        } else {
+            return;
+        }
+
+        List<ItemDao.ChildRow> rows = ItemDao.getChildRows(
+            collectionId,
+            parentId
+        );
+
+        node.removeAllChildren();
+        for (ItemDao.ChildRow row : rows) {
+            node.add(createNodeForRow(row));
+        }
+        ((DefaultTreeModel) tree.getModel()).nodeStructureChanged(node);
+    }
+
+    private boolean hasUnloadedChildren(DefaultMutableTreeNode node) {
+        return (
+            node.getChildCount() == 1 &&
+            ((DefaultMutableTreeNode) node.getChildAt(0)).getUserObject() ==
+                LOADING_PLACEHOLDER
+        );
+    }
+
+    private static DefaultMutableTreeNode createNodeForRow(
+        ItemDao.ChildRow row
+    ) {
+        DefaultMutableTreeNode node = new DefaultMutableTreeNode(
+            new TreeNodeData(row.id, row.name, row.itemType, row.method)
+        );
+        if (row.hasChildren) {
+            node.add(new DefaultMutableTreeNode(LOADING_PLACEHOLDER));
+        }
+        return node;
+    }
+
+    private static String canonicalMethod(String method, String defaultMethod) {
+        if (method == null || method.isBlank()) {
+            return defaultMethod;
+        }
+        return method.toUpperCase().intern();
     }
 
     private DefaultMutableTreeNode findNodeDepthFirst(
@@ -481,41 +602,60 @@ public class CollectionTreeManager {
     }
 
     /**
-     * Loads a Postman collection file, saves it to the database, and adds it to the UI tree.
+     * Imports a Postman collection file into the database on a background
+     * thread (streaming, so the whole file is never held in memory) and adds
+     * it to the UI tree when done.
      *
      * @param file The Postman collection JSON file
      */
     public void loadCollectionFile(File file) {
         if (file == null || !file.exists()) return;
 
-        try {
-            // Parse the collection
-            PostmanCollection postmanCollection = objectMapper.readValue(
-                file,
-                PostmanCollection.class
-            );
+        new SwingWorker<Integer, Void>() {
+            @Override
+            protected Integer doInBackground() {
+                return CollectionDao.importCollectionFile(
+                    file,
+                    file.getName()
+                );
+            }
 
-            // Save to database
-            currentCollectionId = CollectionDao.saveCollection(
-                postmanCollection,
-                file.getName()
-            );
+            @Override
+            protected void done() {
+                int collectionId;
+                try {
+                    collectionId = get();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    collectionId = -1;
+                }
 
-            // Add collection to tree
-            addCollectionToTree(currentCollectionId, file.getName());
-        } catch (Exception e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(
-                null,
-                "Error loading collection: " + e.getMessage(),
-                "Error",
-                JOptionPane.ERROR_MESSAGE
-            );
-        }
+                if (collectionId <= 0) {
+                    JOptionPane.showMessageDialog(
+                        null,
+                        "Error loading collection: " + file.getName(),
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE
+                    );
+                    return;
+                }
+
+                currentCollectionId = collectionId;
+                String collectionName = CollectionDao.getCollectionNameById(
+                    collectionId
+                );
+                addCollectionToTree(
+                    collectionId,
+                    collectionName != null ? collectionName : file.getName()
+                );
+            }
+        }.execute();
     }
 
     /**
      * Loads all collections from the database and builds the UI tree.
+     * Only the collection roots are materialized; their contents load lazily
+     * when a node is first expanded.
      */
     public void loadAllCollections() {
         java.util.List<CollectionDao.CollectionInfo> collections =
@@ -526,11 +666,9 @@ public class CollectionTreeManager {
         );
 
         for (CollectionDao.CollectionInfo collectionInfo : collections) {
-            DefaultMutableTreeNode collectionNode = buildTreeFromDatabase(
-                collectionInfo.id,
-                collectionInfo.name
+            rootNode.add(
+                createCollectionNode(collectionInfo.id, collectionInfo.name)
             );
-            rootNode.add(collectionNode);
         }
 
         DefaultTreeModel model = createTreeModel(rootNode);
@@ -541,6 +679,25 @@ public class CollectionTreeManager {
             TreePath rootPath = new TreePath(rootNode);
             tree.expandPath(rootPath);
         });
+    }
+
+    /**
+     * Creates a collection root node with a lazy-loading placeholder child
+     * when the collection has items.
+     */
+    private DefaultMutableTreeNode createCollectionNode(
+        int collectionId,
+        String collectionName
+    ) {
+        DefaultMutableTreeNode collectionNode = new DefaultMutableTreeNode(
+            new CollectionRootData(collectionId, collectionName)
+        );
+        if (ItemDao.hasItems(collectionId)) {
+            collectionNode.add(
+                new DefaultMutableTreeNode(LOADING_PLACEHOLDER)
+            );
+        }
+        return collectionNode;
     }
 
     /**
@@ -572,8 +729,8 @@ public class CollectionTreeManager {
             }
         }
 
-        // Build the collection tree
-        DefaultMutableTreeNode collectionNode = buildTreeFromDatabase(
+        // Build a lazy collection node; contents load on first expand
+        DefaultMutableTreeNode collectionNode = createCollectionNode(
             collectionId,
             collectionName
         );
@@ -589,123 +746,6 @@ public class CollectionTreeManager {
         TreePath rootPath = new TreePath(rootNode);
         tree.expandPath(rootPath);
         return collectionNode;
-    }
-
-    /**
-     * Builds the tree structure from the database for the given collection.
-     * Uses batch loading to avoid N+1 query problem.
-     *
-     * @param collectionId The collection ID in the database
-     * @param collectionName The name to display as root
-     * @return The root tree node
-     */
-    private DefaultMutableTreeNode buildTreeFromDatabase(
-        int collectionId,
-        String collectionName
-    ) {
-        // Use CollectionRootData to track collection ID in the root node
-        DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode(
-            new CollectionRootData(collectionId, collectionName)
-        );
-
-        // Load ALL items for the collection in a single query (solves N+1 problem)
-        CollectionDao.CollectionItemsData itemsData =
-            CollectionDao.getAllItemsForCollection(collectionId);
-
-        // Get root items (items with no parent)
-        java.util.List<ItemDao.ItemInfo> rootItems = itemsData.getRootItems();
-
-        // Build tree nodes recursively using in-memory data
-        for (ItemDao.ItemInfo itemInfo : rootItems) {
-            rootNode.add(buildNodeFromMemory(itemInfo, itemsData));
-        }
-
-        return rootNode;
-    }
-
-    /**
-     * Recursively builds a tree node from in-memory item data.
-     * This avoids multiple database queries by using pre-loaded data.
-     *
-     * @param itemInfo The item information
-     * @param itemsData The collection items data (contains all items and relationships)
-     * @return The tree node
-     */
-    private DefaultMutableTreeNode buildNodeFromMemory(
-        ItemDao.ItemInfo itemInfo,
-        CollectionDao.CollectionItemsData itemsData
-    ) {
-        // If this item is a request, get the method from the pre-loaded map
-        TreeNodeData nodeData;
-        if ("request".equals(itemInfo.itemType)) {
-            String method = itemsData.getRequestMethod(itemInfo.id);
-            nodeData = buildRequestNodeData(
-                itemInfo.id,
-                itemInfo.name,
-                method,
-                null
-            );
-        } else {
-            nodeData = new TreeNodeData(
-                itemInfo.id,
-                itemInfo.name,
-                itemInfo.itemType,
-                itemInfo.name
-            );
-        }
-        DefaultMutableTreeNode node = new DefaultMutableTreeNode(nodeData);
-
-        // Get child items from in-memory map (no database query!)
-        java.util.List<ItemDao.ItemInfo> childItems = itemsData.getChildItems(
-            itemInfo.id
-        );
-        for (ItemDao.ItemInfo childInfo : childItems) {
-            node.add(buildNodeFromMemory(childInfo, itemsData));
-        }
-
-        return node;
-    }
-
-    private static TreeNodeData buildRequestNodeData(
-        int itemId,
-        String requestName,
-        String method,
-        String defaultMethod
-    ) {
-        String displayName = buildRequestDisplayName(
-            requestName,
-            method,
-            defaultMethod
-        );
-        return new TreeNodeData(itemId, requestName, "request", displayName);
-    }
-
-    private static String buildRequestDisplayName(
-        String requestName,
-        String method,
-        String defaultMethod
-    ) {
-        String resolvedMethod =
-            method == null || method.isBlank() ? defaultMethod : method;
-        if (resolvedMethod == null || resolvedMethod.isBlank()) {
-            return requestName;
-        }
-        return requestName + " [" + resolvedMethod + "]";
-    }
-
-    private static String extractRequestMethodFromDisplayName(
-        String displayName
-    ) {
-        if (displayName == null) {
-            return null;
-        }
-
-        int startIndex = displayName.lastIndexOf('[');
-        int endIndex = displayName.lastIndexOf(']');
-        if (startIndex >= 0 && endIndex > startIndex) {
-            return displayName.substring(startIndex + 1, endIndex).trim();
-        }
-        return null;
     }
 
     /**
@@ -731,6 +771,8 @@ public class CollectionTreeManager {
         );
 
         if (requestNode == null) {
+            // Node not materialized yet; it will show the fresh method from
+            // the database when its parent is expanded
             return;
         }
 
@@ -740,11 +782,11 @@ public class CollectionTreeManager {
         }
 
         requestNode.setUserObject(
-            buildRequestNodeData(
+            new TreeNodeData(
                 nodeData.itemId,
                 nodeData.itemName,
-                method,
-                "GET"
+                nodeData.itemType,
+                canonicalMethod(method, "GET")
             )
         );
         model.nodeChanged(requestNode);
@@ -852,20 +894,12 @@ public class CollectionTreeManager {
                 return;
             }
 
-            String displayName = "request".equals(nodeData.itemType)
-                ? buildRequestDisplayName(
-                      newName,
-                      extractRequestMethodFromDisplayName(nodeData.displayName),
-                      "GET"
-                  )
-                : newName;
             node.setUserObject(
                 new TreeNodeData(
                     nodeData.itemId,
                     newName,
                     nodeData.itemType,
-                    displayName,
-                    nodeData.collectionId
+                    nodeData.method
                 )
             );
             nodeChanged(node);
@@ -925,41 +959,35 @@ public class CollectionTreeManager {
 
     /**
      * Data class to store item information in tree nodes.
+     * Kept minimal on purpose: the display text is derived on the fly instead
+     * of being stored, so large collections don't retain a second copy of
+     * every item name.
      */
     public static class TreeNodeData {
 
         public final int itemId;
         public final String itemName;
         public final String itemType;
-        public final String displayName;
-        public final Integer collectionId; // Optional: only set for collection root nodes
+        public final String method; // null unless the item is a request
 
         public TreeNodeData(
             int itemId,
             String itemName,
             String itemType,
-            String displayName
-        ) {
-            this(itemId, itemName, itemType, displayName, null);
-        }
-
-        public TreeNodeData(
-            int itemId,
-            String itemName,
-            String itemType,
-            String displayName,
-            Integer collectionId
+            String method
         ) {
             this.itemId = itemId;
             this.itemName = itemName;
             this.itemType = itemType;
-            this.displayName = displayName;
-            this.collectionId = collectionId;
+            this.method = method;
         }
 
         @Override
         public String toString() {
-            return displayName;
+            if (method == null) {
+                return itemName;
+            }
+            return itemName + " [" + method + "]";
         }
     }
 

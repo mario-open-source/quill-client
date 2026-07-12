@@ -1,6 +1,12 @@
 package com.quillapiclient.db;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quillapiclient.objects.*;
+import java.io.File;
+import java.io.IOException;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -13,18 +19,20 @@ import java.util.Map;
  */
 public class CollectionDao {
 
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
     /**
-     * Saves a Postman collection to the database.
-     * If a collection with the same postman_id exists, it will be replaced.
+     * Imports a Postman collection file into the database using streaming JSON
+     * parsing. Only one item subtree is held in memory at a time, so importing
+     * a collection with thousands of requests does not require materializing
+     * the whole file as objects.
+     * If a collection with the same postman_id exists, it is replaced.
      *
-     * @param collection The Postman collection to save
-     * @param fileName The name of the file (used as collection name if info.name is null)
-     * @return The collection ID in the database, or -1 if operation fails
+     * @param file The Postman collection JSON file
+     * @param fileName The file name (used as collection name if info.name is null)
+     * @return The collection ID in the database, or -1 if the import fails
      */
-    public static int saveCollection(
-        PostmanCollection collection,
-        String fileName
-    ) {
+    public static int importCollectionFile(File file, String fileName) {
         Connection conn = LiteConnection.getConnection();
         try {
             conn.setAutoCommit(false);
@@ -36,89 +44,100 @@ public class CollectionDao {
             return -1;
         }
 
-        try {
-            Info info = collection.getInfo();
-            String postmanId =
-                info != null && info.getPostmanId() != null
-                    ? info.getPostmanId()
-                    : null;
-            String collectionName = (info != null && info.getName() != null)
-                ? info.getName()
-                : fileName;
-            String schemaVersion = info != null ? info.getSchema() : null;
-            String exporterId = info != null ? info.getExporterId() : null;
-            String description = info != null ? info.getDescription() : null;
+        int collectionId = -1;
+        try (
+            JsonParser parser = objectMapper.getFactory().createParser(file)
+        ) {
+            if (parser.nextToken() != JsonToken.START_OBJECT) {
+                throw new IOException(
+                    "Expected a JSON object at the collection root"
+                );
+            }
 
-            // Check if collection already exists
-            int collectionId;
-            try (
-                PreparedStatement checkStmt = conn.prepareStatement(
-                    "SELECT id FROM collections WHERE postman_id = ?"
-                )
-            ) {
-                checkStmt.setString(1, postmanId);
-                ResultSet rs = checkStmt.executeQuery();
-                if (rs.next()) {
-                    collectionId = rs.getInt("id");
-                    // Delete existing collection (cascade will delete all related data)
-                    try (
-                        PreparedStatement deleteStmt = conn.prepareStatement(
-                            "DELETE FROM collections WHERE id = ?"
-                        )
-                    ) {
-                        deleteStmt.setInt(1, collectionId);
-                        deleteStmt.executeUpdate();
+            while (parser.nextToken() == JsonToken.FIELD_NAME) {
+                String field = parser.currentName();
+                parser.nextToken();
+
+                switch (field) {
+                    case "info" -> {
+                        Info info = objectMapper.readValue(parser, Info.class);
+                        collectionId = upsertCollectionRow(
+                            conn,
+                            collectionId,
+                            info,
+                            fileName
+                        );
                     }
-                } else {
-                    collectionId = -1; // Will be set after insert
+                    case "variable" -> {
+                        if (parser.currentToken() == JsonToken.START_ARRAY) {
+                            List<Variable> variables = objectMapper.readValue(
+                                parser,
+                                new TypeReference<List<Variable>>() {}
+                            );
+                            collectionId = ensureCollectionRow(
+                                conn,
+                                collectionId,
+                                fileName
+                            );
+                            VariableDao.saveVariables(
+                                conn,
+                                collectionId,
+                                null,
+                                variables
+                            );
+                        } else {
+                            parser.skipChildren();
+                        }
+                    }
+                    case "event" -> {
+                        if (parser.currentToken() == JsonToken.START_ARRAY) {
+                            List<Event> events = objectMapper.readValue(
+                                parser,
+                                new TypeReference<List<Event>>() {}
+                            );
+                            collectionId = ensureCollectionRow(
+                                conn,
+                                collectionId,
+                                fileName
+                            );
+                            EventDao.saveEvents(
+                                conn,
+                                collectionId,
+                                null,
+                                events
+                            );
+                        } else {
+                            parser.skipChildren();
+                        }
+                    }
+                    case "item" -> {
+                        if (parser.currentToken() == JsonToken.START_ARRAY) {
+                            collectionId = ensureCollectionRow(
+                                conn,
+                                collectionId,
+                                fileName
+                            );
+                            // Stream one item subtree at a time; each becomes
+                            // garbage-collectable right after it is persisted
+                            while (parser.nextToken() != JsonToken.END_ARRAY) {
+                                Item item = objectMapper.readValue(
+                                    parser,
+                                    Item.class
+                                );
+                                ItemDao.saveItem(conn, collectionId, null, item);
+                            }
+                        } else {
+                            parser.skipChildren();
+                        }
+                    }
+                    default -> parser.skipChildren();
                 }
             }
 
-            // Insert collection
-            try (
-                PreparedStatement stmt = conn.prepareStatement(
-                    "INSERT INTO collections (postman_id, name, schema_version, exporter_id, description) VALUES (?, ?, ?, ?, ?)",
-                    Statement.RETURN_GENERATED_KEYS
-                )
-            ) {
-                stmt.setString(1, postmanId);
-                stmt.setString(2, collectionName);
-                stmt.setString(3, schemaVersion);
-                stmt.setString(4, exporterId);
-                stmt.setString(5, description);
-                stmt.executeUpdate();
-
-                ResultSet rs = stmt.getGeneratedKeys();
-                if (rs.next()) {
-                    collectionId = rs.getInt(1);
-                }
-            }
-
-            // Save collection-level variables
-            if (collection.getVariable() != null) {
-                VariableDao.saveVariables(
-                    conn,
-                    collectionId,
-                    null,
-                    collection.getVariable()
+            if (collectionId <= 0) {
+                throw new IOException(
+                    "Collection file contained no importable content"
                 );
-            }
-
-            // Save collection-level events
-            if (collection.getEvent() != null) {
-                EventDao.saveEvents(
-                    conn,
-                    collectionId,
-                    null,
-                    collection.getEvent()
-                );
-            }
-
-            // Save items recursively
-            if (collection.getItem() != null) {
-                for (Item item : collection.getItem()) {
-                    ItemDao.saveItem(conn, collectionId, null, item);
-                }
             }
 
             conn.commit();
@@ -133,7 +152,7 @@ public class CollectionDao {
                 rollbackEx.printStackTrace();
             }
             System.err.println(
-                "Error saving collection to database: " + e.getMessage()
+                "Error importing collection file: " + e.getMessage()
             );
             e.printStackTrace();
             return -1;
@@ -150,8 +169,90 @@ public class CollectionDao {
     }
 
     /**
-     * Recursively saves an item (folder or request) to the database.
+     * Inserts the collection row from its info block, or fills in the metadata
+     * on the placeholder row when "info" appears after "item" in the file.
+     * Replaces any existing collection with the same postman_id.
      */
+    private static int upsertCollectionRow(
+        Connection conn,
+        int existingId,
+        Info info,
+        String fileName
+    ) throws SQLException {
+        String postmanId = info != null ? info.getPostmanId() : null;
+        String name = info != null && info.getName() != null
+            ? info.getName()
+            : fileName;
+        String schemaVersion = info != null ? info.getSchema() : null;
+        String exporterId = info != null ? info.getExporterId() : null;
+        String description = info != null ? info.getDescription() : null;
+
+        // postman_id is UNIQUE: drop any previous import of this collection
+        if (postmanId != null) {
+            try (
+                PreparedStatement deleteStmt = conn.prepareStatement(
+                    "DELETE FROM collections WHERE postman_id = ? AND id != ?"
+                )
+            ) {
+                deleteStmt.setString(1, postmanId);
+                deleteStmt.setInt(2, existingId);
+                deleteStmt.executeUpdate();
+            }
+        }
+
+        if (existingId > 0) {
+            try (
+                PreparedStatement stmt = conn.prepareStatement(
+                    "UPDATE collections SET postman_id = ?, name = ?, schema_version = ?, exporter_id = ?, description = ? WHERE id = ?"
+                )
+            ) {
+                stmt.setString(1, postmanId);
+                stmt.setString(2, name);
+                stmt.setString(3, schemaVersion);
+                stmt.setString(4, exporterId);
+                stmt.setString(5, description);
+                stmt.setInt(6, existingId);
+                stmt.executeUpdate();
+            }
+            return existingId;
+        }
+
+        try (
+            PreparedStatement stmt = conn.prepareStatement(
+                "INSERT INTO collections (postman_id, name, schema_version, exporter_id, description) VALUES (?, ?, ?, ?, ?)",
+                Statement.RETURN_GENERATED_KEYS
+            )
+        ) {
+            stmt.setString(1, postmanId);
+            stmt.setString(2, name);
+            stmt.setString(3, schemaVersion);
+            stmt.setString(4, exporterId);
+            stmt.setString(5, description);
+            stmt.executeUpdate();
+
+            ResultSet rs = stmt.getGeneratedKeys();
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        }
+        throw new SQLException("Failed to insert collection row");
+    }
+
+    /**
+     * Returns the current collection ID, inserting a placeholder row when
+     * items/variables/events appear before the "info" block in the file.
+     */
+    private static int ensureCollectionRow(
+        Connection conn,
+        int existingId,
+        String fileName
+    ) throws SQLException {
+        if (existingId > 0) {
+            return existingId;
+        }
+        return upsertCollectionRow(conn, existingId, null, fileName);
+    }
+
     /**
      * Gets all collections from the database.
      *

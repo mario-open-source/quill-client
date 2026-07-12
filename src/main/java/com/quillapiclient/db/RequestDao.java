@@ -152,16 +152,16 @@ public class RequestDao {
             throw new RuntimeException("Error saving request to database", e);
         }
 
-        // Save headers
-        if (request.getHeader() != null) {
-            int sortOrder = 0;
-            for (Header header : request.getHeader()) {
-                try (
-                    PreparedStatement stmt = conn.prepareStatement(
-                        "INSERT INTO headers (request_id, header_key, header_value, disabled, sort_order) " +
-                            "VALUES (?, ?, ?, ?, ?)"
-                    )
-                ) {
+        // Save headers (batched: one statement for the whole list)
+        if (request.getHeader() != null && !request.getHeader().isEmpty()) {
+            try (
+                PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO headers (request_id, header_key, header_value, disabled, sort_order) " +
+                        "VALUES (?, ?, ?, ?, ?)"
+                )
+            ) {
+                int sortOrder = 0;
+                for (Header header : request.getHeader()) {
                     stmt.setInt(1, requestId);
                     stmt.setString(2, header.getKey());
                     stmt.setString(3, header.getValue());
@@ -172,38 +172,44 @@ public class RequestDao {
                             : 0
                     );
                     stmt.setInt(5, sortOrder++);
-                    stmt.executeUpdate();
-                } catch (SQLException e) {
-                    System.err.println(
-                        "Error saving header to database: " + e.getMessage()
-                    );
-                    e.printStackTrace();
+                    stmt.addBatch();
                 }
+                stmt.executeBatch();
+            } catch (SQLException e) {
+                System.err.println(
+                    "Error saving headers to database: " + e.getMessage()
+                );
+                e.printStackTrace();
             }
         }
 
-        // Save query parameters
-        if (request.getUrl() != null && request.getUrl().getQuery() != null) {
-            int sortOrder = 0;
-            for (Query query : request.getUrl().getQuery()) {
-                try (
-                    PreparedStatement stmt = conn.prepareStatement(
-                        "INSERT INTO query_params (request_id, param_key, param_value, sort_order) " +
-                            "VALUES (?, ?, ?, ?)"
-                    )
-                ) {
+        // Save query parameters (batched: one statement for the whole list)
+        if (
+            request.getUrl() != null &&
+            request.getUrl().getQuery() != null &&
+            !request.getUrl().getQuery().isEmpty()
+        ) {
+            try (
+                PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO query_params (request_id, param_key, param_value, sort_order) " +
+                        "VALUES (?, ?, ?, ?)"
+                )
+            ) {
+                int sortOrder = 0;
+                for (Query query : request.getUrl().getQuery()) {
                     stmt.setInt(1, requestId);
                     stmt.setString(2, query.getKey());
                     stmt.setString(3, query.getValue());
                     stmt.setInt(4, sortOrder++);
-                    stmt.executeUpdate();
-                } catch (SQLException e) {
-                    System.err.println(
-                        "Error saving query parameter to database: " +
-                            e.getMessage()
-                    );
-                    e.printStackTrace();
+                    stmt.addBatch();
                 }
+                stmt.executeBatch();
+            } catch (SQLException e) {
+                System.err.println(
+                    "Error saving query parameters to database: " +
+                        e.getMessage()
+                );
+                e.printStackTrace();
             }
         }
     }

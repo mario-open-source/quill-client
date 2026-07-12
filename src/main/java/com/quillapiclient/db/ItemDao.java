@@ -112,75 +112,100 @@ public class ItemDao {
     }
 
     /**
-     * Gets all root items (items with no parent) for a collection.
+     * Gets the direct children of a tree level, with just the data the tree
+     * needs to render them (name, type, HTTP method, expandability).
+     * Used by the lazily loaded collection tree: only one level is queried
+     * and materialized at a time.
+     *
+     * @param collectionId The collection ID (used when parentId is null)
+     * @param parentId The parent item ID, or null for the collection root level
+     * @return List of child rows ordered by item ID
+     */
+    public static List<ChildRow> getChildRows(
+        int collectionId,
+        Integer parentId
+    ) {
+        List<ChildRow> rows = new ArrayList<>();
+        Connection conn = LiteConnection.getConnection();
+
+        String where = parentId == null
+            ? "i.collection_id = ? AND i.parent_id IS NULL"
+            : "i.parent_id = ?";
+        String sql =
+            "SELECT i.id, i.name, i.item_type, r.method, " +
+                "EXISTS(SELECT 1 FROM items c WHERE c.parent_id = i.id) AS has_children " +
+                "FROM items i " +
+                "LEFT JOIN requests r ON r.item_id = i.id " +
+                "WHERE " + where + " ORDER BY i.id";
+
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, parentId == null ? collectionId : parentId);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                String method = rs.getString("method");
+                rows.add(
+                    new ChildRow(
+                        rs.getInt("id"),
+                        rs.getString("name"),
+                        canonicalItemType(rs.getString("item_type")),
+                        method != null && !method.isEmpty()
+                            ? method.toUpperCase().intern()
+                            : null,
+                        rs.getInt("has_children") == 1
+                    )
+                );
+            }
+        } catch (SQLException e) {
+            System.err.println(
+                "Error getting child rows from database: " + e.getMessage()
+            );
+            e.printStackTrace();
+        }
+
+        return rows;
+    }
+
+    /**
+     * Checks whether a collection has any items at all.
      *
      * @param collectionId The collection ID
-     * @return List of item IDs and names
+     * @return true when the collection contains at least one item
      */
-    public static List<ItemInfo> getRootItems(int collectionId) {
-        List<ItemInfo> items = new ArrayList<>();
+    public static boolean hasItems(int collectionId) {
         Connection conn = LiteConnection.getConnection();
 
         try (
             PreparedStatement stmt = conn.prepareStatement(
-                "SELECT id, name, item_type FROM items WHERE collection_id = ? AND parent_id IS NULL ORDER BY id"
+                "SELECT EXISTS(SELECT 1 FROM items WHERE collection_id = ?)"
             )
         ) {
             stmt.setInt(1, collectionId);
             ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                items.add(
-                    new ItemInfo(
-                        rs.getInt("id"),
-                        rs.getString("name"),
-                        rs.getString("item_type")
-                    )
-                );
+            if (rs.next()) {
+                return rs.getInt(1) == 1;
             }
         } catch (SQLException e) {
             System.err.println(
-                "Error getting root items from database: " + e.getMessage()
+                "Error checking collection items: " + e.getMessage()
             );
             e.printStackTrace();
         }
 
-        return items;
+        return false;
     }
 
     /**
-     * Gets all child items for a given parent item.
-     *
-     * @param parentId The parent item ID
-     * @return List of item IDs and names
+     * Maps item_type strings from the database onto shared constants so the
+     * tree does not retain thousands of duplicate strings.
      */
-    public static List<ItemInfo> getChildItems(int parentId) {
-        List<ItemInfo> items = new ArrayList<>();
-        Connection conn = LiteConnection.getConnection();
-
-        try (
-            PreparedStatement stmt = conn.prepareStatement(
-                "SELECT id, name, item_type FROM items WHERE parent_id = ? ORDER BY id"
-            )
-        ) {
-            stmt.setInt(1, parentId);
-            ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                items.add(
-                    new ItemInfo(
-                        rs.getInt("id"),
-                        rs.getString("name"),
-                        rs.getString("item_type")
-                    )
-                );
-            }
-        } catch (SQLException e) {
-            System.err.println(
-                "Error getting child items from database: " + e.getMessage()
-            );
-            e.printStackTrace();
+    private static String canonicalItemType(String itemType) {
+        if ("request".equals(itemType)) {
+            return "request";
         }
-
-        return items;
+        if ("folder".equals(itemType)) {
+            return "folder";
+        }
+        return itemType;
     }
 
     /**
@@ -352,6 +377,32 @@ public class ItemDao {
             this.id = id;
             this.name = name;
             this.itemType = itemType;
+        }
+    }
+
+    /**
+     * One row of a lazily loaded tree level.
+     */
+    public static class ChildRow {
+
+        public final int id;
+        public final String name;
+        public final String itemType;
+        public final String method; // null unless the item is a request
+        public final boolean hasChildren;
+
+        public ChildRow(
+            int id,
+            String name,
+            String itemType,
+            String method,
+            boolean hasChildren
+        ) {
+            this.id = id;
+            this.name = name;
+            this.itemType = itemType;
+            this.method = method;
+            this.hasChildren = hasChildren;
         }
     }
 }

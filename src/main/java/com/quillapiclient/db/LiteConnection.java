@@ -11,10 +11,14 @@ import java.sql.SQLException;
  */
 public class LiteConnection {
     private static final String APP_NAME = "quillclient";
-    private static final String DB_DIR = System.getProperty("user.home") + File.separator + 
+    private static final String DB_DIR = System.getProperty("user.home") + File.separator +
                                          "." + APP_NAME;
     private static final String DB_FILE = "app.db";
-    private static final String DB_PATH = DB_DIR + File.separator + DB_FILE;
+    // Overridable so tests/benchmarks can point at a throwaway database
+    private static final String DB_PATH = System.getProperty(
+        "quill.db.path",
+        DB_DIR + File.separator + DB_FILE
+    );
     private static final String DB_URL = "jdbc:sqlite:" + DB_PATH;
 
     private static Connection connection;
@@ -46,11 +50,11 @@ public class LiteConnection {
             
             try {
                 // Ensure the directory exists
-                File dbDir = new File(DB_DIR);
-                if (!dbDir.exists()) {
+                File dbDir = new File(DB_PATH).getParentFile();
+                if (dbDir != null && !dbDir.exists()) {
                     boolean created = dbDir.mkdirs();
                     if (!created) {
-                        throw new RuntimeException("Failed to create database directory: " + DB_DIR);
+                        throw new RuntimeException("Failed to create database directory: " + dbDir);
                     }
                 }
                 

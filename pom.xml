@@ -28,6 +28,13 @@
                 </configuration>
             </plugin>
 
+            <!-- Surefire for running JUnit 5 tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.2</version>
+            </plugin>
+
             <!-- JAR plugin with main class manifest -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -126,6 +133,14 @@
             <version>25.0.2</version>
             <type>pom</type>
             <scope>compile</scope>
+        </dependency>
+
+        <!-- JUnit 5 for tests and performance benchmarks -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.11.4</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

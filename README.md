@@ -86,6 +86,20 @@ Or use the Maven exec plugin:
 mvn exec:java
 ```
 
+For the lowest memory footprint (recommended when working with large
+collections), run with G1 flags that return unused heap to the operating
+system instead of keeping it committed after a large import:
+```bash
+java -XX:+UseG1GC \
+     -XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=30 \
+     -XX:G1PeriodicGCInterval=60000 \
+     -XX:+UseStringDeduplication \
+     -jar target/quillclient-1.0-SNAPSHOT.jar
+```
+Without these flags the JVM tends to hold on to heap it grew during an
+import, so the process RSS stays high even after the memory is no longer
+used.
+
 ## 💻 Usage
 
 ### Getting Started
