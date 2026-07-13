@@ -33,7 +33,23 @@ public class CollectionDao {
      * @return The collection ID in the database, or -1 if the import fails
      */
     public static int importCollectionFile(File file, String fileName) {
-        Connection conn = LiteConnection.getConnection();
+        // Runs on a background thread (see CollectionTreeLoader) and holds an
+        // open transaction for the whole streaming import, so it uses its
+        // own connection rather than the shared singleton the EDT's DAO
+        // calls use — otherwise a concurrent EDT read/write on the same
+        // Connection object could be swept into this transaction's
+        // commit/rollback.
+        Connection conn;
+        try {
+            conn = LiteConnection.openNewConnection();
+        } catch (SQLException e) {
+            System.err.println(
+                "Error opening import connection: " + e.getMessage()
+            );
+            e.printStackTrace();
+            return -1;
+        }
+
         try {
             conn.setAutoCommit(false);
         } catch (SQLException e) {
@@ -41,6 +57,7 @@ public class CollectionDao {
                 "Error setting auto-commit to false: " + e.getMessage()
             );
             e.printStackTrace();
+            closeQuietly(conn);
             return -1;
         }
 
@@ -157,14 +174,18 @@ public class CollectionDao {
             e.printStackTrace();
             return -1;
         } finally {
-            try {
-                conn.setAutoCommit(true);
-            } catch (SQLException e) {
-                System.err.println(
-                    "Error resetting auto-commit: " + e.getMessage()
-                );
-                e.printStackTrace();
-            }
+            closeQuietly(conn);
+        }
+    }
+
+    private static void closeQuietly(Connection conn) {
+        try {
+            conn.close();
+        } catch (SQLException e) {
+            System.err.println(
+                "Error closing import connection: " + e.getMessage()
+            );
+            e.printStackTrace();
         }
     }
 

@@ -21,6 +21,17 @@ public class LiteConnection {
     );
     private static final String DB_URL = "jdbc:sqlite:" + DB_PATH;
 
+    // SQLite JDBC connections are not safe for concurrent use by multiple
+    // threads. Long-lived background work (e.g. a streaming import that
+    // holds an open transaction) must not share this singleton with the
+    // EDT, or a concurrent read/write on the same Connection object can be
+    // swept into the background transaction's commit/rollback. WAL mode
+    // (enabled in DatabaseSchema) lets a dedicated connection opened via
+    // openNewConnection() read/write concurrently with this one without
+    // blocking, as long as two writers don't collide — busy_timeout below
+    // makes a collision retry instead of failing immediately.
+    private static final int BUSY_TIMEOUT_MS = 5000;
+
     private static Connection connection;
     private static boolean driverLoaded = false;
 
@@ -60,16 +71,41 @@ public class LiteConnection {
                 
                 // Create connection (SQLite will create the file if it doesn't exist)
                 connection = DriverManager.getConnection(DB_URL);
-                
+
                 // Enable foreign keys (recommended for SQLite)
                 connection.createStatement().execute("PRAGMA foreign_keys = ON");
-                
+                connection
+                    .createStatement()
+                    .execute("PRAGMA busy_timeout = " + BUSY_TIMEOUT_MS);
+
                 System.out.println("SQLite connected to: " + DB_PATH);
             } catch (SQLException e) {
                 throw new RuntimeException("Failed to connect to SQLite database at: " + DB_PATH, e);
             }
         }
         return connection;
+    }
+
+    /**
+     * Opens a standalone connection independent of the shared singleton
+     * returned by {@link #getConnection()}, for background work that needs
+     * its own transaction (e.g. a streaming import running on a
+     * SwingWorker thread) without contending with the EDT for the same
+     * Connection object. Callers are responsible for closing it.
+     *
+     * @return a new Connection to the same database file
+     * @throws SQLException if the connection cannot be opened
+     */
+    public static Connection openNewConnection() throws SQLException {
+        if (!driverLoaded) {
+            throw new RuntimeException("SQLite JDBC driver not loaded");
+        }
+        Connection conn = DriverManager.getConnection(DB_URL);
+        conn.createStatement().execute("PRAGMA foreign_keys = ON");
+        conn
+            .createStatement()
+            .execute("PRAGMA busy_timeout = " + BUSY_TIMEOUT_MS);
+        return conn;
     }
 
     /**
