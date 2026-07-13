@@ -30,49 +30,31 @@ class EditableCollectionTreeModel extends DefaultTreeModel {
             return;
         }
 
-        Object userObject = node.getUserObject();
-        if (userObject instanceof CollectionRootData collectionRootData) {
-            renamePathNode(
+        if (!(node.getUserObject() instanceof TreeNodeData nodeData)) {
+            return;
+        }
+
+        switch (nodeData.kind) {
+            case COLLECTION -> renamePathNode(
                 node,
                 newValue,
-                collectionRootData.collectionName,
-                "collection",
+                nodeData.name,
+                nodeData.kind.displayLabel(),
                 newName -> CollectionDao.updateCollectionName(
-                    collectionRootData.collectionId,
+                    nodeData.id,
                     newName
                 ),
-                newName -> new CollectionRootData(
-                    collectionRootData.collectionId,
-                    newName
-                )
+                newName -> TreeNodeData.collection(nodeData.id, newName)
             );
-            return;
+            case FOLDER, REQUEST -> renamePathNode(
+                node,
+                newValue,
+                nodeData.name,
+                nodeData.kind.displayLabel(),
+                newName -> ItemDao.updateItemName(nodeData.id, newName),
+                nodeData::withName
+            );
         }
-
-        if (!(userObject instanceof TreeNodeData nodeData)) {
-            return;
-        }
-
-        if (
-            !"folder".equals(nodeData.itemType) &&
-            !"request".equals(nodeData.itemType)
-        ) {
-            return;
-        }
-
-        renamePathNode(
-            node,
-            newValue,
-            nodeData.itemName,
-            nodeData.itemType,
-            newName -> ItemDao.updateItemName(nodeData.itemId, newName),
-            newName -> new TreeNodeData(
-                nodeData.itemId,
-                newName,
-                nodeData.itemType,
-                nodeData.method
-            )
-        );
     }
 
     /**

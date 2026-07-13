@@ -1,5 +1,6 @@
 package com.quillapiclient.components;
 
+import com.quillapiclient.controller.TreeNodeData;
 import com.quillapiclient.utility.MethodColorUtil;
 import java.awt.Color;
 import java.awt.Component;
@@ -12,20 +13,16 @@ import javax.swing.BorderFactory;
 import javax.swing.JTree;
 import javax.swing.border.Border;
 import javax.swing.border.EmptyBorder;
+import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 
 /**
  * Renders request rows as "[METHOD] name" with the method tag colored per HTTP
  * verb, by drawing the tag directly rather than using an HTML-formatted label.
  *
- * <p>The previous implementation set the label text to an
- * {@code <html><span style='color:…'>[GET]</span> name</html>} string. Swing
- * rebuilds a styled HTML View for such a label on every repaint of every
- * visible cell, which profiled at roughly 10x the cost of drawing the tag
- * ourselves — the kind of per-cell overhead that erodes scroll smoothness on
- * large collections and slower machines. This renderer keeps the label as
- * plain text and paints the colored tag into reserved space, so scrolling a
- * few-thousand-request collection stays fast and allocation-free per cell.
+ * <p>Reads {@link TreeNodeData#method} from the tree node instead of parsing
+ * brackets out of the label text, so request names that contain {@code [}
+ * or {@code ]} cannot corrupt the tag and the label stays plain text.
  *
  * <p>Space for the tag is reserved with a left border inset rather than the
  * icon/text gap, so it works whether or not tree nodes have icons (this app's
@@ -76,33 +73,34 @@ public class MethodTreeCellRenderer extends DefaultTreeCellRenderer {
         methodColor = null;
         reservedWidth = 0;
 
-        String text = getText();
-        if (text != null) {
-            int start = text.indexOf('[');
-            int end = text.indexOf(']');
-            if (start >= 0 && end > start) {
-                method = text.substring(start + 1, end).trim();
-                methodColor = MethodColorUtil.getMethodColor(method);
-                setText(text.substring(0, start).trim());
+        if (
+            value instanceof DefaultMutableTreeNode node &&
+            node.getUserObject() instanceof TreeNodeData data &&
+            data.kind == TreeNodeData.Kind.REQUEST &&
+            data.method != null &&
+            !data.method.isBlank()
+        ) {
+            method = data.method;
+            methodColor = MethodColorUtil.getMethodColor(method);
+            setText(data.name);
 
-                FontMetrics fm = getFontMetrics(getFont());
-                reservedWidth =
-                    fm.stringWidth("[" + method + "]") + TAG_NAME_GAP;
+            FontMetrics fm = getFontMetrics(getFont());
+            reservedWidth =
+                fm.stringWidth("[" + method + "]") + TAG_NAME_GAP;
 
-                // Push the name right by reservedWidth via a left inset; the
-                // tag is painted into the vacated space in paintComponent.
-                // Widening the border also grows the preferred width, so the
-                // name is never clipped.
-                EmptyBorder inset = new EmptyBorder(0, reservedWidth, 0, 0);
-                setBorder(
-                    defaultBorder == null
-                        ? inset
-                        : BorderFactory.createCompoundBorder(
-                            defaultBorder,
-                            inset
-                        )
-                );
-            }
+            // Push the name right by reservedWidth via a left inset; the
+            // tag is painted into the vacated space in paintComponent.
+            // Widening the border also grows the preferred width, so the
+            // name is never clipped.
+            EmptyBorder inset = new EmptyBorder(0, reservedWidth, 0, 0);
+            setBorder(
+                defaultBorder == null
+                    ? inset
+                    : BorderFactory.createCompoundBorder(
+                        defaultBorder,
+                        inset
+                    )
+            );
         }
         return this;
     }

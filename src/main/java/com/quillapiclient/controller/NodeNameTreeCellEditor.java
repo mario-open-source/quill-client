@@ -33,22 +33,12 @@ class NodeNameTreeCellEditor extends DefaultTreeCellEditor {
 
         if (
             value instanceof DefaultMutableTreeNode node &&
+            node.getUserObject() instanceof TreeNodeData nodeData &&
             editingComponent instanceof JTextField textField
         ) {
-            if (
-                node.getUserObject() instanceof TreeNodeData nodeData &&
-                ("folder".equals(nodeData.itemType) ||
-                    "request".equals(nodeData.itemType))
-            ) {
-                textField.setText(nodeData.itemName);
-                textField.selectAll();
-            } else if (
-                node.getUserObject() instanceof
-                    CollectionRootData collectionRootData
-            ) {
-                textField.setText(collectionRootData.collectionName);
-                textField.selectAll();
-            }
+            // Edit the plain name only — never the painted method tag.
+            textField.setText(nodeData.name);
+            textField.selectAll();
         }
 
         return component;

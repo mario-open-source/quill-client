@@ -33,14 +33,9 @@ class CollectionTreeLoader {
     };
 
     private final JTree tree;
-    private int currentCollectionId = -1;
 
     CollectionTreeLoader(JTree tree) {
         this.tree = tree;
-    }
-
-    int getCurrentCollectionId() {
-        return currentCollectionId;
     }
 
     private DefaultTreeModel model() {
@@ -56,8 +51,9 @@ class CollectionTreeLoader {
                 (DefaultMutableTreeNode) root.getChildAt(i);
             Object uo = child.getUserObject();
             if (
-                uo instanceof CollectionRootData data &&
-                data.collectionId == collectionId
+                uo instanceof TreeNodeData data &&
+                data.kind == TreeNodeData.Kind.COLLECTION &&
+                data.id == collectionId
             ) {
                 return child;
             }
@@ -75,10 +71,9 @@ class CollectionTreeLoader {
         addNodeToCollection(
             collectionId,
             parentFolderId,
-            new TreeNodeData(
+            TreeNodeData.request(
                 itemId,
                 requestName,
-                "request",
                 canonicalMethod(method, "GET")
             )
         );
@@ -93,7 +88,7 @@ class CollectionTreeLoader {
         addNodeToCollection(
             collectionId,
             parentFolderId,
-            new TreeNodeData(itemId, folderName, "folder", null)
+            TreeNodeData.folder(itemId, folderName)
         );
     }
 
@@ -116,8 +111,8 @@ class CollectionTreeLoader {
                 collectionNode,
                 uo ->
                     uo instanceof TreeNodeData nd &&
-                    "folder".equals(nd.itemType) &&
-                    nd.itemId == parentFolderId
+                    nd.kind == TreeNodeData.Kind.FOLDER &&
+                    nd.id == parentFolderId
             );
 
             if (folderNode != null) {
@@ -132,9 +127,7 @@ class CollectionTreeLoader {
             loadChildrenIfNeeded(parentNode);
             newNode = findNodeDepthFirst(
                 parentNode,
-                uo ->
-                    uo instanceof TreeNodeData nd &&
-                    nd.itemId == nodeData.itemId
+                uo -> uo instanceof TreeNodeData nd && nd.id == nodeData.id
             );
             if (newNode == null) return;
         } else {
@@ -161,21 +154,20 @@ class CollectionTreeLoader {
             return;
         }
 
-        int collectionId;
-        Integer parentId;
-        Object userObject = node.getUserObject();
-        if (userObject instanceof CollectionRootData rootData) {
-            collectionId = rootData.collectionId;
-            parentId = null;
-        } else if (
-            userObject instanceof TreeNodeData nodeData &&
-            "folder".equals(nodeData.itemType)
-        ) {
-            collectionId = -1; // child lookup only needs the parent ID
-            parentId = nodeData.itemId;
-        } else {
+        if (!(node.getUserObject() instanceof TreeNodeData data)) {
             return;
         }
+        if (data.kind == TreeNodeData.Kind.REQUEST) {
+            return;
+        }
+
+        // COLLECTION roots filter by collection id; folders only need parent id
+        int collectionId = data.kind == TreeNodeData.Kind.COLLECTION
+            ? data.id
+            : -1;
+        Integer parentId = data.kind == TreeNodeData.Kind.FOLDER
+            ? data.id
+            : null;
 
         List<ItemDao.ChildRow> rows = ItemDao.getChildRows(
             collectionId,
@@ -200,9 +192,12 @@ class CollectionTreeLoader {
     private static DefaultMutableTreeNode createNodeForRow(
         ItemDao.ChildRow row
     ) {
-        DefaultMutableTreeNode node = new DefaultMutableTreeNode(
-            new TreeNodeData(row.id, row.name, row.itemType, row.method)
-        );
+        TreeNodeData.Kind kind = TreeNodeData.Kind.fromDbItemType(row.itemType);
+        TreeNodeData data = kind == TreeNodeData.Kind.REQUEST
+            ? TreeNodeData.request(row.id, row.name, row.method)
+            : TreeNodeData.folder(row.id, row.name);
+
+        DefaultMutableTreeNode node = new DefaultMutableTreeNode(data);
         if (row.hasChildren) {
             node.add(new DefaultMutableTreeNode(LOADING_PLACEHOLDER));
         }
@@ -275,7 +270,6 @@ class CollectionTreeLoader {
                     return;
                 }
 
-                currentCollectionId = collectionId;
                 String collectionName = CollectionDao.getCollectionNameById(
                     collectionId
                 );
@@ -328,7 +322,7 @@ class CollectionTreeLoader {
         String collectionName
     ) {
         DefaultMutableTreeNode collectionNode = new DefaultMutableTreeNode(
-            new CollectionRootData(collectionId, collectionName)
+            TreeNodeData.collection(collectionId, collectionName)
         );
         if (ItemDao.hasItems(collectionId)) {
             collectionNode.add(
@@ -356,14 +350,13 @@ class CollectionTreeLoader {
         for (int i = 0; i < rootNode.getChildCount(); i++) {
             DefaultMutableTreeNode child =
                 (DefaultMutableTreeNode) rootNode.getChildAt(i);
-            if (child.getUserObject() instanceof CollectionRootData) {
-                CollectionRootData rootData =
-                    (CollectionRootData) child.getUserObject();
-                if (rootData.collectionId == collectionId) {
-                    // Collection already exists, remove it first
-                    model.removeNodeFromParent(child);
-                    break;
-                }
+            if (
+                child.getUserObject() instanceof TreeNodeData data &&
+                data.kind == TreeNodeData.Kind.COLLECTION &&
+                data.id == collectionId
+            ) {
+                model.removeNodeFromParent(child);
+                break;
             }
         }
 
@@ -404,8 +397,8 @@ class CollectionTreeLoader {
             root,
             uo ->
                 uo instanceof TreeNodeData nd &&
-                "request".equals(nd.itemType) &&
-                nd.itemId == itemId
+                nd.kind == TreeNodeData.Kind.REQUEST &&
+                nd.id == itemId
         );
 
         if (requestNode == null) {
@@ -414,18 +407,12 @@ class CollectionTreeLoader {
             return;
         }
 
-        Object userObject = requestNode.getUserObject();
-        if (!(userObject instanceof TreeNodeData nodeData)) {
+        if (!(requestNode.getUserObject() instanceof TreeNodeData nodeData)) {
             return;
         }
 
         requestNode.setUserObject(
-            new TreeNodeData(
-                nodeData.itemId,
-                nodeData.itemName,
-                nodeData.itemType,
-                canonicalMethod(method, "GET")
-            )
+            nodeData.withMethod(canonicalMethod(method, "GET"))
         );
         model.nodeChanged(requestNode);
         tree.repaint();

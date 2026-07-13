@@ -116,16 +116,16 @@ public class CollectionTreeManager {
             return;
         }
 
-        if (!"request".equals(nodeData.itemType)) {
+        if (nodeData.kind != TreeNodeData.Kind.REQUEST) {
             return;
         }
 
         for (IntConsumer listener : new ArrayList<>(requestItemIdListeners)) {
-            listener.accept(nodeData.itemId);
+            listener.accept(nodeData.id);
         }
 
         Request selectedRequest = requestController.getRequestByItemId(
-            nodeData.itemId
+            nodeData.id
         );
         if (selectedRequest == null) {
             return;
@@ -184,15 +184,6 @@ public class CollectionTreeManager {
      */
     public void updateRequestNodeMethod(int itemId, String method) {
         loader.updateRequestNodeMethod(itemId, method);
-    }
-
-    /**
-     * Gets the current collection ID.
-     *
-     * @return The collection ID, or -1 if no collection is loaded
-     */
-    public int getCurrentCollectionId() {
-        return loader.getCurrentCollectionId();
     }
 
     public JTree getTree() {

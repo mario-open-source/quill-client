@@ -2,6 +2,7 @@ package com.quillapiclient.controller;
 
 import com.quillapiclient.components.ResponsePanel;
 import com.quillapiclient.db.CollectionDao;
+import com.quillapiclient.db.LiteConnection;
 import com.quillapiclient.db.ResponseDao;
 import com.quillapiclient.scripting.ScriptOrchestrator;
 import com.quillapiclient.server.ApiCallBuilder;
@@ -113,18 +114,18 @@ public class ApiController {
                 long duration = System.currentTimeMillis() - startTime;
                 response.setDuration(duration);
 
-                // Save response to database
-                if (itemId > 0) {
-                    int requestId = requestController.getRequestIdByItemId(
-                        itemId
-                    );
-                    if (requestId > 0) {
-                        ResponseDao.saveResponse(response, requestId);
+                // All DB work on this executor thread shares one dedicated
+                // connection (lookup, save response, post-script persist).
+                LiteConnection.withNewConnection(conn -> {
+                    if (itemId > 0) {
+                        int requestId =
+                            requestController.getRequestIdByItemId(itemId);
+                        if (requestId > 0) {
+                            ResponseDao.saveResponse(response, requestId);
+                        }
                     }
-                }
-
-                // Phase 3: run post-response script
-                orchestrator.runPostResponse(response);
+                    orchestrator.runPostResponse(response);
+                });
 
                 SwingUtilities.invokeLater(() -> displayResponse(response));
             } catch (Exception e) {

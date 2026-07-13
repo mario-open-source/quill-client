@@ -33,159 +33,170 @@ public class CollectionDao {
      * @return The collection ID in the database, or -1 if the import fails
      */
     public static int importCollectionFile(File file, String fileName) {
-        // Runs on a background thread (see CollectionTreeLoader) and holds an
-        // open transaction for the whole streaming import, so it uses its
-        // own connection rather than the shared singleton the EDT's DAO
-        // calls use — otherwise a concurrent EDT read/write on the same
-        // Connection object could be swept into this transaction's
-        // commit/rollback.
-        Connection conn;
+        // Background work (CollectionTreeLoader SwingWorker): dedicated
+        // connection via withNewConnection so the long-lived import
+        // transaction never shares a Connection object with the EDT.
         try {
-            conn = LiteConnection.openNewConnection();
-        } catch (SQLException e) {
+            return LiteConnection.withNewConnection(conn -> {
+                try {
+                    conn.setAutoCommit(false);
+                } catch (SQLException e) {
+                    System.err.println(
+                        "Error setting auto-commit to false: " + e.getMessage()
+                    );
+                    e.printStackTrace();
+                    return -1;
+                }
+
+                int collectionId = -1;
+                try (
+                    JsonParser parser = objectMapper
+                        .getFactory()
+                        .createParser(file)
+                ) {
+                    if (parser.nextToken() != JsonToken.START_OBJECT) {
+                        throw new IOException(
+                            "Expected a JSON object at the collection root"
+                        );
+                    }
+
+                    while (parser.nextToken() == JsonToken.FIELD_NAME) {
+                        String field = parser.currentName();
+                        parser.nextToken();
+
+                        switch (field) {
+                            case "info" -> {
+                                Info info = objectMapper.readValue(
+                                    parser,
+                                    Info.class
+                                );
+                                collectionId = upsertCollectionRow(
+                                    conn,
+                                    collectionId,
+                                    info,
+                                    fileName
+                                );
+                            }
+                            case "variable" -> {
+                                if (
+                                    parser.currentToken() ==
+                                    JsonToken.START_ARRAY
+                                ) {
+                                    List<Variable> variables =
+                                        objectMapper.readValue(
+                                            parser,
+                                            new TypeReference<
+                                                List<Variable>
+                                            >() {}
+                                        );
+                                    collectionId = ensureCollectionRow(
+                                        conn,
+                                        collectionId,
+                                        fileName
+                                    );
+                                    VariableDao.saveVariables(
+                                        conn,
+                                        collectionId,
+                                        null,
+                                        variables
+                                    );
+                                } else {
+                                    parser.skipChildren();
+                                }
+                            }
+                            case "event" -> {
+                                if (
+                                    parser.currentToken() ==
+                                    JsonToken.START_ARRAY
+                                ) {
+                                    List<Event> events =
+                                        objectMapper.readValue(
+                                            parser,
+                                            new TypeReference<
+                                                List<Event>
+                                            >() {}
+                                        );
+                                    collectionId = ensureCollectionRow(
+                                        conn,
+                                        collectionId,
+                                        fileName
+                                    );
+                                    EventDao.saveEvents(
+                                        conn,
+                                        collectionId,
+                                        null,
+                                        events
+                                    );
+                                } else {
+                                    parser.skipChildren();
+                                }
+                            }
+                            case "item" -> {
+                                if (
+                                    parser.currentToken() ==
+                                    JsonToken.START_ARRAY
+                                ) {
+                                    collectionId = ensureCollectionRow(
+                                        conn,
+                                        collectionId,
+                                        fileName
+                                    );
+                                    // Stream one item subtree at a time; each
+                                    // becomes garbage-collectable after persist
+                                    while (
+                                        parser.nextToken() !=
+                                        JsonToken.END_ARRAY
+                                    ) {
+                                        Item item = objectMapper.readValue(
+                                            parser,
+                                            Item.class
+                                        );
+                                        ItemDao.saveItem(
+                                            conn,
+                                            collectionId,
+                                            null,
+                                            item
+                                        );
+                                    }
+                                } else {
+                                    parser.skipChildren();
+                                }
+                            }
+                            default -> parser.skipChildren();
+                        }
+                    }
+
+                    if (collectionId <= 0) {
+                        throw new IOException(
+                            "Collection file contained no importable content"
+                        );
+                    }
+
+                    conn.commit();
+                    return collectionId;
+                } catch (Exception e) {
+                    try {
+                        conn.rollback();
+                    } catch (SQLException rollbackEx) {
+                        System.err.println(
+                            "Error rolling back transaction: " +
+                                rollbackEx.getMessage()
+                        );
+                        rollbackEx.printStackTrace();
+                    }
+                    System.err.println(
+                        "Error importing collection file: " + e.getMessage()
+                    );
+                    e.printStackTrace();
+                    return -1;
+                }
+            });
+        } catch (RuntimeException e) {
             System.err.println(
                 "Error opening import connection: " + e.getMessage()
             );
             e.printStackTrace();
             return -1;
-        }
-
-        try {
-            conn.setAutoCommit(false);
-        } catch (SQLException e) {
-            System.err.println(
-                "Error setting auto-commit to false: " + e.getMessage()
-            );
-            e.printStackTrace();
-            closeQuietly(conn);
-            return -1;
-        }
-
-        int collectionId = -1;
-        try (
-            JsonParser parser = objectMapper.getFactory().createParser(file)
-        ) {
-            if (parser.nextToken() != JsonToken.START_OBJECT) {
-                throw new IOException(
-                    "Expected a JSON object at the collection root"
-                );
-            }
-
-            while (parser.nextToken() == JsonToken.FIELD_NAME) {
-                String field = parser.currentName();
-                parser.nextToken();
-
-                switch (field) {
-                    case "info" -> {
-                        Info info = objectMapper.readValue(parser, Info.class);
-                        collectionId = upsertCollectionRow(
-                            conn,
-                            collectionId,
-                            info,
-                            fileName
-                        );
-                    }
-                    case "variable" -> {
-                        if (parser.currentToken() == JsonToken.START_ARRAY) {
-                            List<Variable> variables = objectMapper.readValue(
-                                parser,
-                                new TypeReference<List<Variable>>() {}
-                            );
-                            collectionId = ensureCollectionRow(
-                                conn,
-                                collectionId,
-                                fileName
-                            );
-                            VariableDao.saveVariables(
-                                conn,
-                                collectionId,
-                                null,
-                                variables
-                            );
-                        } else {
-                            parser.skipChildren();
-                        }
-                    }
-                    case "event" -> {
-                        if (parser.currentToken() == JsonToken.START_ARRAY) {
-                            List<Event> events = objectMapper.readValue(
-                                parser,
-                                new TypeReference<List<Event>>() {}
-                            );
-                            collectionId = ensureCollectionRow(
-                                conn,
-                                collectionId,
-                                fileName
-                            );
-                            EventDao.saveEvents(
-                                conn,
-                                collectionId,
-                                null,
-                                events
-                            );
-                        } else {
-                            parser.skipChildren();
-                        }
-                    }
-                    case "item" -> {
-                        if (parser.currentToken() == JsonToken.START_ARRAY) {
-                            collectionId = ensureCollectionRow(
-                                conn,
-                                collectionId,
-                                fileName
-                            );
-                            // Stream one item subtree at a time; each becomes
-                            // garbage-collectable right after it is persisted
-                            while (parser.nextToken() != JsonToken.END_ARRAY) {
-                                Item item = objectMapper.readValue(
-                                    parser,
-                                    Item.class
-                                );
-                                ItemDao.saveItem(conn, collectionId, null, item);
-                            }
-                        } else {
-                            parser.skipChildren();
-                        }
-                    }
-                    default -> parser.skipChildren();
-                }
-            }
-
-            if (collectionId <= 0) {
-                throw new IOException(
-                    "Collection file contained no importable content"
-                );
-            }
-
-            conn.commit();
-            return collectionId;
-        } catch (Exception e) {
-            try {
-                conn.rollback();
-            } catch (SQLException rollbackEx) {
-                System.err.println(
-                    "Error rolling back transaction: " + rollbackEx.getMessage()
-                );
-                rollbackEx.printStackTrace();
-            }
-            System.err.println(
-                "Error importing collection file: " + e.getMessage()
-            );
-            e.printStackTrace();
-            return -1;
-        } finally {
-            closeQuietly(conn);
-        }
-    }
-
-    private static void closeQuietly(Connection conn) {
-        try {
-            conn.close();
-        } catch (SQLException e) {
-            System.err.println(
-                "Error closing import connection: " + e.getMessage()
-            );
-            e.printStackTrace();
         }
     }
 

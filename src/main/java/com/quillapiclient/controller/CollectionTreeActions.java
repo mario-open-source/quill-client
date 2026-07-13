@@ -121,21 +121,16 @@ class CollectionTreeActions {
     }
 
     void handleDeleteItem(
-        String itemType,
+        TreeNodeData.Kind kind,
         int collectionId,
         Integer itemId,
         DefaultMutableTreeNode node
     ) {
-        if (collectionId <= 0 || itemType == null || node == null) {
+        if (collectionId <= 0 || kind == null || node == null) {
             return;
         }
 
-        String itemLabel = switch (itemType) {
-            case "collection" -> "collection";
-            case "folder" -> "folder";
-            case "request" -> "request";
-            default -> "item";
-        };
+        String itemLabel = kind.displayLabel();
 
         int confirm = JOptionPane.showConfirmDialog(
             tree,
@@ -149,11 +144,9 @@ class CollectionTreeActions {
             return;
         }
 
-        boolean deleted = switch (itemType) {
-            case "collection" -> CollectionDao.deleteCollection(collectionId);
-            case "folder", "request" -> itemId != null &&
-                ItemDao.deleteItem(itemId);
-            default -> false;
+        boolean deleted = switch (kind) {
+            case COLLECTION -> CollectionDao.deleteCollection(collectionId);
+            case FOLDER, REQUEST -> itemId != null && ItemDao.deleteItem(itemId);
         };
 
         if (deleted) {
@@ -169,7 +162,7 @@ class CollectionTreeActions {
     }
 
     void handleRenameItem(
-        String itemType,
+        TreeNodeData.Kind kind,
         int collectionId,
         Integer itemId,
         DefaultMutableTreeNode node
@@ -177,7 +170,7 @@ class CollectionTreeActions {
         if (collectionId <= 0 || itemId == null || node == null) {
             return;
         }
-        if (!"folder".equals(itemType) && !"request".equals(itemType)) {
+        if (!kind.isContextRenamable()) {
             return;
         }
 

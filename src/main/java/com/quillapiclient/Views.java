@@ -8,6 +8,7 @@ import com.quillapiclient.controller.ApiController;
 import com.quillapiclient.controller.CollectionTreeManager;
 import com.quillapiclient.controller.EnvironmentListManager;
 import com.quillapiclient.controller.RequestController;
+import com.quillapiclient.db.LiteConnection;
 import com.quillapiclient.objects.ExecutionRequest;
 import com.quillapiclient.objects.Request;
 import com.quillapiclient.server.ApiResponse;
@@ -42,12 +43,15 @@ public class Views {
         setupComponents();
 
         // Load all collections and environments from database on a background
-        // thread to avoid blocking the EDT during startup.
+        // thread to avoid blocking the EDT during startup. Dedicated connection
+        // so startup queries never share the EDT singleton Connection object.
         new SwingWorker<Void, Void>() {
             @Override
             protected Void doInBackground() {
-                collectionManager.loadAllCollections();
-                environmentManager.loadAllEnvironments();
+                LiteConnection.withNewConnection(conn -> {
+                    collectionManager.loadAllCollections();
+                    environmentManager.loadAllEnvironments();
+                });
                 return null;
             }
 
