@@ -164,14 +164,13 @@ public class CollectionTreeContextMenu {
         Integer itemId = null;
 
         if (
-            userObject instanceof
-                CollectionTreeManager.CollectionRootData rootData
+            userObject instanceof CollectionRootData rootData
         ) {
             collectionId = rootData.collectionId;
             isFolder = true;
             itemType = "collection";
         } else if (
-            userObject instanceof CollectionTreeManager.TreeNodeData nodeData
+            userObject instanceof TreeNodeData nodeData
         ) {
             if ("folder".equals(nodeData.itemType)) {
                 isFolder = true;
@@ -225,10 +224,7 @@ public class CollectionTreeContextMenu {
         for (Object component : components) {
             if (component instanceof DefaultMutableTreeNode node) {
                 Object userObject = node.getUserObject();
-                if (
-                    userObject instanceof
-                        CollectionTreeManager.CollectionRootData rootData
-                ) {
+                if (userObject instanceof CollectionRootData rootData) {
                     return rootData.collectionId;
                 }
             }
