@@ -33,7 +33,11 @@ public class CollectionTreeManager {
         DefaultMutableTreeNode emptyRoot = new DefaultMutableTreeNode(
             "Collections"
         );
-        tree = new JTree(new EditableCollectionTreeModel(emptyRoot, tree));
+        // Built in two steps so EditableCollectionTreeModel captures the real
+        // tree reference: constructing it inline here as the JTree's initial
+        // model would read the `tree` field before this assignment completes.
+        tree = new JTree(emptyRoot);
+        tree.setModel(new EditableCollectionTreeModel(emptyRoot, tree));
         loader = new CollectionTreeLoader(tree);
         actions = new CollectionTreeActions(tree, requestController, loader);
         // Large-model mode with a fixed row height uses a fixed-height layout

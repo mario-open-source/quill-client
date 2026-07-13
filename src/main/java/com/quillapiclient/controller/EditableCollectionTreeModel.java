@@ -2,6 +2,8 @@ package com.quillapiclient.controller;
 
 import com.quillapiclient.db.CollectionDao;
 import com.quillapiclient.db.ItemDao;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import javax.swing.JOptionPane;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -30,39 +32,20 @@ class EditableCollectionTreeModel extends DefaultTreeModel {
 
         Object userObject = node.getUserObject();
         if (userObject instanceof CollectionRootData collectionRootData) {
-            String newName = newValue != null
-                ? newValue.toString().trim()
-                : "";
-            if (
-                newName.isEmpty() ||
-                newName.equals(collectionRootData.collectionName)
-            ) {
-                nodeChanged(node);
-                return;
-            }
-
-            boolean saved = CollectionDao.updateCollectionName(
-                collectionRootData.collectionId,
-                newName
-            );
-            if (!saved) {
-                JOptionPane.showMessageDialog(
-                    tree,
-                    "Failed to rename collection.",
-                    "Rename Failed",
-                    JOptionPane.ERROR_MESSAGE
-                );
-                nodeChanged(node);
-                return;
-            }
-
-            node.setUserObject(
-                new CollectionRootData(
+            renamePathNode(
+                node,
+                newValue,
+                collectionRootData.collectionName,
+                "collection",
+                newName -> CollectionDao.updateCollectionName(
+                    collectionRootData.collectionId,
+                    newName
+                ),
+                newName -> new CollectionRootData(
                     collectionRootData.collectionId,
                     newName
                 )
             );
-            nodeChanged(node);
             return;
         }
 
@@ -77,22 +60,45 @@ class EditableCollectionTreeModel extends DefaultTreeModel {
             return;
         }
 
+        renamePathNode(
+            node,
+            newValue,
+            nodeData.itemName,
+            nodeData.itemType,
+            newName -> ItemDao.updateItemName(nodeData.itemId, newName),
+            newName -> new TreeNodeData(
+                nodeData.itemId,
+                newName,
+                nodeData.itemType,
+                nodeData.method
+            )
+        );
+    }
+
+    /**
+     * Shared rename flow: trims the new value, bails out on empty/unchanged,
+     * persists via {@code persist}, and on success replaces the node's user
+     * object via {@code rebuild}. On failure shows a "Rename Failed" dialog
+     * naming {@code failureLabel} and reverts the node's display text.
+     */
+    private void renamePathNode(
+        DefaultMutableTreeNode node,
+        Object newValue,
+        String currentName,
+        String failureLabel,
+        Predicate<String> persist,
+        Function<String, Object> rebuild
+    ) {
         String newName = newValue != null ? newValue.toString().trim() : "";
-        if (newName.isEmpty()) {
+        if (newName.isEmpty() || newName.equals(currentName)) {
             nodeChanged(node);
             return;
         }
 
-        if (newName.equals(nodeData.itemName)) {
-            nodeChanged(node);
-            return;
-        }
-
-        boolean saved = ItemDao.updateItemName(nodeData.itemId, newName);
-        if (!saved) {
+        if (!persist.test(newName)) {
             JOptionPane.showMessageDialog(
                 tree,
-                "Failed to rename " + nodeData.itemType + ".",
+                "Failed to rename " + failureLabel + ".",
                 "Rename Failed",
                 JOptionPane.ERROR_MESSAGE
             );
@@ -100,14 +106,7 @@ class EditableCollectionTreeModel extends DefaultTreeModel {
             return;
         }
 
-        node.setUserObject(
-            new TreeNodeData(
-                nodeData.itemId,
-                newName,
-                nodeData.itemType,
-                nodeData.method
-            )
-        );
+        node.setUserObject(rebuild.apply(newName));
         nodeChanged(node);
     }
 }

@@ -25,7 +25,20 @@ public class ResponseDao {
      * @return The response ID, or -1 on failure
      */
     public static int saveResponse(ApiResponse response, int requestId) {
-        Connection conn = LiteConnection.getConnection();
+        // Runs on ApiController's background executor thread on every "Send",
+        // so it uses its own connection rather than the shared singleton the
+        // EDT's DAO calls use — otherwise these inserts could interleave with
+        // a concurrent EDT write on the same Connection object.
+        Connection conn;
+        try {
+            conn = LiteConnection.openNewConnection();
+        } catch (SQLException e) {
+            System.err.println(
+                "Error opening response connection: " + e.getMessage()
+            );
+            e.printStackTrace();
+            return -1;
+        }
 
         try {
             // Serialize full response to JSON for flexibility
@@ -108,6 +121,15 @@ public class ResponseDao {
             );
             e.printStackTrace();
             return -1;
+        } finally {
+            try {
+                conn.close();
+            } catch (SQLException e) {
+                System.err.println(
+                    "Error closing response connection: " + e.getMessage()
+                );
+                e.printStackTrace();
+            }
         }
     }
 

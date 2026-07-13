@@ -43,8 +43,12 @@ class CollectionTreeLoader {
         return currentCollectionId;
     }
 
+    private DefaultTreeModel model() {
+        return (DefaultTreeModel) tree.getModel();
+    }
+
     DefaultMutableTreeNode findCollectionNode(int collectionId) {
-        DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+        DefaultTreeModel model = model();
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) model.getRoot();
 
         for (int i = 0; i < root.getChildCount(); i++) {
@@ -98,7 +102,7 @@ class CollectionTreeLoader {
         Integer parentFolderId,
         TreeNodeData nodeData
     ) {
-        DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+        DefaultTreeModel model = model();
 
         DefaultMutableTreeNode collectionNode = findCollectionNode(
             collectionId
@@ -182,7 +186,7 @@ class CollectionTreeLoader {
         for (ItemDao.ChildRow row : rows) {
             node.add(createNodeForRow(row));
         }
-        ((DefaultTreeModel) tree.getModel()).nodeStructureChanged(node);
+        model().nodeStructureChanged(node);
     }
 
     private boolean hasUnloadedChildren(DefaultMutableTreeNode node) {
@@ -344,7 +348,7 @@ class CollectionTreeLoader {
         int collectionId,
         String collectionName
     ) {
-        DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+        DefaultTreeModel model = model();
         DefaultMutableTreeNode rootNode =
             (DefaultMutableTreeNode) model.getRoot();
 
@@ -393,7 +397,7 @@ class CollectionTreeLoader {
             return;
         }
 
-        DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+        DefaultTreeModel model = model();
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) model.getRoot();
 
         DefaultMutableTreeNode requestNode = findNodeDepthFirst(

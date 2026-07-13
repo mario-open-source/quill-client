@@ -58,25 +58,13 @@ public class LiteConnection {
             if (!driverLoaded) {
                 throw new RuntimeException("SQLite JDBC driver not loaded");
             }
-            
+
             try {
-                // Ensure the directory exists
-                File dbDir = new File(DB_PATH).getParentFile();
-                if (dbDir != null && !dbDir.exists()) {
-                    boolean created = dbDir.mkdirs();
-                    if (!created) {
-                        throw new RuntimeException("Failed to create database directory: " + dbDir);
-                    }
-                }
-                
+                ensureDbDirectoryExists();
+
                 // Create connection (SQLite will create the file if it doesn't exist)
                 connection = DriverManager.getConnection(DB_URL);
-
-                // Enable foreign keys (recommended for SQLite)
-                connection.createStatement().execute("PRAGMA foreign_keys = ON");
-                connection
-                    .createStatement()
-                    .execute("PRAGMA busy_timeout = " + BUSY_TIMEOUT_MS);
+                configureConnection(connection);
 
                 System.out.println("SQLite connected to: " + DB_PATH);
             } catch (SQLException e) {
@@ -100,12 +88,30 @@ public class LiteConnection {
         if (!driverLoaded) {
             throw new RuntimeException("SQLite JDBC driver not loaded");
         }
+        ensureDbDirectoryExists();
         Connection conn = DriverManager.getConnection(DB_URL);
+        configureConnection(conn);
+        return conn;
+    }
+
+    /** Creates the database's parent directory if it doesn't already exist. */
+    private static void ensureDbDirectoryExists() {
+        File dbDir = new File(DB_PATH).getParentFile();
+        if (dbDir != null && !dbDir.exists()) {
+            boolean created = dbDir.mkdirs();
+            if (!created) {
+                throw new RuntimeException("Failed to create database directory: " + dbDir);
+            }
+        }
+    }
+
+    /** Applies the PRAGMAs every connection to this database needs. */
+    private static void configureConnection(Connection conn) throws SQLException {
+        // Enable foreign keys (recommended for SQLite)
         conn.createStatement().execute("PRAGMA foreign_keys = ON");
         conn
             .createStatement()
             .execute("PRAGMA busy_timeout = " + BUSY_TIMEOUT_MS);
-        return conn;
     }
 
     /**
