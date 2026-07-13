@@ -20,6 +20,7 @@ import javax.swing.tree.DefaultTreeCellEditor;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
+import com.quillapiclient.components.MethodTreeCellRenderer;
 
 public class CollectionTreeManager {
 
@@ -61,7 +62,7 @@ public class CollectionTreeManager {
         }
         // Set custom renderer to display methods with colors
         tree.setCellRenderer(
-            new com.quillapiclient.components.MethodTreeCellRenderer()
+            new MethodTreeCellRenderer()
         );
         setupInlineEditingSupport();
         tree.addTreeSelectionListener(this::handleTreeSelectionChanged);
