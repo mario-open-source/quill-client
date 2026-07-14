@@ -86,6 +86,47 @@ Or use the Maven exec plugin:
 mvn exec:java
 ```
 
+### Memory tuning (important for large collections)
+
+**Run the app with a heap cap.** Without `-Xmx`, the JVM sizes the heap
+against physical RAM — on a 32GB machine it starts at a 500MB heap and may
+grow to 8GB. Browsing requests allocates garbage (each selection
+deserializes a request from SQLite), and with that much headroom the
+collector never feels pressure: it simply commits more memory instead of
+collecting. Resident memory climbs past 350MB and never comes back down,
+even though the live set is only ~10MB.
+
+These flags keep a 3000-request collection at roughly **190MB resident
+instead of 370MB**:
+
+```bash
+MALLOC_ARENA_MAX=2 java \
+     -Xms32m -Xmx192m \
+     -XX:+UseSerialGC \
+     -XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=30 \
+     -XX:ReservedCodeCacheSize=64m -XX:MaxMetaspaceSize=96m \
+     -jar target/quillclient-1.0-SNAPSHOT.jar
+```
+
+Why these:
+
+* `-Xmx192m` is the one that matters. It forces the collector to actually
+  reclaim garbage rather than grow the heap. Everything else is a rounding
+  error next to it.
+* `-XX:+UseSerialGC` beats G1 here. The live set is ~10MB, so G1's
+  concurrent threads and remembered sets are pure overhead; SerialGC is both
+  smaller and faster at this size.
+* `MALLOC_ARENA_MAX=2` limits glibc's per-thread malloc arenas.
+* The code cache and metaspace caps bound JIT and class metadata growth.
+
+192MB of heap is comfortable: the streaming import peaks around 78MB even on
+a 150MB collection file. Do not drop below ~128m if you import large files.
+
+Note that roughly 91MB of the remaining footprint is the floor for *any*
+Java + Swing application (an empty FlatLaf window costs that much before a
+line of application code runs), and the 3000 tree nodes themselves account
+for only about 6MB.
+
 ## 💻 Usage
 
 ### Getting Started

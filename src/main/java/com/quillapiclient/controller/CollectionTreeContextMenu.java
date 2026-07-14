@@ -6,7 +6,6 @@ import java.awt.event.MouseEvent;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.JTree;
-import javax.swing.SwingUtilities;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
 
@@ -22,7 +21,7 @@ public class CollectionTreeContextMenu {
     private Integer contextCollectionId;
     private Integer contextParentId;
     private Integer contextItemId;
-    private String contextItemType;
+    private TreeNodeData.Kind contextKind;
     private DefaultMutableTreeNode contextNode;
     private JMenuItem addRequestItem;
     private JMenuItem addFolderItem;
@@ -73,12 +72,12 @@ public class CollectionTreeContextMenu {
         renameItem.addActionListener(event -> {
             if (
                 contextCollectionId != null &&
-                contextItemType != null &&
+                contextKind != null &&
                 contextItemId != null &&
                 contextNode != null
             ) {
                 renameHandler.onRename(
-                    contextItemType,
+                    contextKind,
                     contextCollectionId,
                     contextItemId,
                     contextNode
@@ -90,11 +89,11 @@ public class CollectionTreeContextMenu {
         deleteItem.addActionListener(event -> {
             if (
                 contextCollectionId != null &&
-                contextItemType != null &&
+                contextKind != null &&
                 contextNode != null
             ) {
                 deleteHandler.onDelete(
-                    contextItemType,
+                    contextKind,
                     contextCollectionId,
                     contextItemId,
                     contextNode
@@ -155,68 +154,53 @@ public class CollectionTreeContextMenu {
         tree.setSelectionPath(path);
         DefaultMutableTreeNode node =
             (DefaultMutableTreeNode) path.getLastPathComponent();
-        Object userObject = node.getUserObject();
-
-        boolean isFolder = false;
-        Integer collectionId = resolveCollectionId(path);
-        Integer parentId = null;
-        String itemType = null;
-        Integer itemId = null;
-
-        if (
-            userObject instanceof
-                CollectionTreeManager.CollectionRootData rootData
-        ) {
-            collectionId = rootData.collectionId;
-            isFolder = true;
-            itemType = "collection";
-        } else if (
-            userObject instanceof CollectionTreeManager.TreeNodeData nodeData
-        ) {
-            if ("folder".equals(nodeData.itemType)) {
-                isFolder = true;
-                parentId = nodeData.itemId;
-                itemType = "folder";
-                itemId = nodeData.itemId;
-            } else if ("request".equals(nodeData.itemType)) {
-                itemType = "request";
-                itemId = nodeData.itemId;
-            }
+        if (!(node.getUserObject() instanceof TreeNodeData nodeData)) {
+            return;
         }
 
-        if (collectionId != null && collectionId > 0 && itemType != null) {
-            boolean isRenamable =
-                "folder".equals(itemType) || "request".equals(itemType);
+        Integer collectionId = resolveCollectionId(path);
+        Integer parentId = null;
+        Integer itemId = null;
+
+        switch (nodeData.kind) {
+            case COLLECTION -> collectionId = nodeData.id;
+            case FOLDER -> {
+                parentId = nodeData.id;
+                itemId = nodeData.id;
+            }
+            case REQUEST -> itemId = nodeData.id;
+        }
+
+        if (collectionId != null && collectionId > 0) {
             contextCollectionId = collectionId;
             contextParentId = parentId;
-            contextItemType = itemType;
+            contextKind = nodeData.kind;
             contextItemId = itemId;
             contextNode = node;
-            addRequestItem.setEnabled(isFolder);
-            addFolderItem.setEnabled(isFolder);
-            renameItem.setEnabled(isRenamable);
-            renameItem.setText(buildRenameLabel(itemType));
+            addRequestItem.setEnabled(nodeData.kind.isContainer());
+            addFolderItem.setEnabled(nodeData.kind.isContainer());
+            renameItem.setEnabled(nodeData.kind.isContextRenamable());
+            renameItem.setText(buildRenameLabel(nodeData.kind));
             deleteItem.setEnabled(true);
-            deleteItem.setText(buildDeleteLabel(itemType));
+            deleteItem.setText(buildDeleteLabel(nodeData.kind));
             exportItem.setEnabled(true);
             popupMenu.show(tree, e.getX(), e.getY());
         }
     }
 
-    private String buildRenameLabel(String itemType) {
-        return switch (itemType) {
-            case "folder" -> "Rename Folder";
-            case "request" -> "Rename Request";
-            default -> "Rename";
+    private String buildRenameLabel(TreeNodeData.Kind kind) {
+        return switch (kind) {
+            case FOLDER -> "Rename Folder";
+            case REQUEST -> "Rename Request";
+            case COLLECTION -> "Rename";
         };
     }
 
-    private String buildDeleteLabel(String itemType) {
-        return switch (itemType) {
-            case "collection" -> "Delete Collection";
-            case "folder" -> "Delete Folder";
-            case "request" -> "Delete Request";
-            default -> "Delete";
+    private String buildDeleteLabel(TreeNodeData.Kind kind) {
+        return switch (kind) {
+            case COLLECTION -> "Delete Collection";
+            case FOLDER -> "Delete Folder";
+            case REQUEST -> "Delete Request";
         };
     }
 
@@ -226,10 +210,10 @@ public class CollectionTreeContextMenu {
             if (component instanceof DefaultMutableTreeNode node) {
                 Object userObject = node.getUserObject();
                 if (
-                    userObject instanceof
-                        CollectionTreeManager.CollectionRootData rootData
+                    userObject instanceof TreeNodeData data &&
+                    data.kind == TreeNodeData.Kind.COLLECTION
                 ) {
-                    return rootData.collectionId;
+                    return data.id;
                 }
             }
         }
@@ -249,7 +233,7 @@ public class CollectionTreeContextMenu {
     @FunctionalInterface
     public interface DeleteHandler {
         void onDelete(
-            String itemType,
+            TreeNodeData.Kind kind,
             int collectionId,
             Integer itemId,
             DefaultMutableTreeNode node
@@ -259,7 +243,7 @@ public class CollectionTreeContextMenu {
     @FunctionalInterface
     public interface RenameHandler {
         void onRename(
-            String itemType,
+            TreeNodeData.Kind kind,
             int collectionId,
             Integer itemId,
             DefaultMutableTreeNode node

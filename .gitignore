@@ -142,3 +142,7 @@ application.local.properties
 
 #Code Review files
 CODE_REVIEW.md
+
+#Skill for AI
+SKILL.md
+.claude/

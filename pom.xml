@@ -14,6 +14,8 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <graalvm.version>24.1.2</graalvm.version>
+        <!-- Override empty to run benches: -Dgroups=benchmark -Dsurefire.excludedGroups= -->
+        <surefire.excludedGroups>benchmark</surefire.excludedGroups>
     </properties>
 
     <build>
@@ -25,6 +27,18 @@
                 <version>3.6.2</version>
                 <configuration>
                     <mainClass>com.quillapiclient.Main</mainClass>
+                </configuration>
+            </plugin>
+
+            <!-- Surefire for running JUnit 5 tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.2</version>
+                <configuration>
+                    <!-- Heavy import/tree benches stay opt-in:
+                         mvn test -Dgroups=benchmark -Dsurefire.excludedGroups= -->
+                    <excludedGroups>${surefire.excludedGroups}</excludedGroups>
                 </configuration>
             </plugin>
 
@@ -60,6 +74,9 @@
                                 >
                                     <mainClass
                                     >com.quillapiclient.Main</mainClass>
+                                    <manifestEntries>
+                                        <Multi-Release>true</Multi-Release>
+                                    </manifestEntries>
                                 </transformer>
                                 <transformer
                                     implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"
@@ -126,6 +143,14 @@
             <version>25.0.2</version>
             <type>pom</type>
             <scope>compile</scope>
+        </dependency>
+
+        <!-- JUnit 5 for tests and performance benchmarks -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.11.4</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

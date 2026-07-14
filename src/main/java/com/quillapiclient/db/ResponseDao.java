@@ -25,8 +25,27 @@ public class ResponseDao {
      * @return The response ID, or -1 on failure
      */
     public static int saveResponse(ApiResponse response, int requestId) {
-        Connection conn = LiteConnection.getConnection();
+        // Background work (ApiController executor): dedicated connection so
+        // inserts never interleave with EDT traffic on the shared singleton.
+        // Nested when already inside LiteConnection.withNewConnection.
+        try {
+            return LiteConnection.withNewConnection(conn ->
+                saveResponseOn(conn, response, requestId)
+            );
+        } catch (RuntimeException e) {
+            System.err.println(
+                "Error opening response connection: " + e.getMessage()
+            );
+            e.printStackTrace();
+            return -1;
+        }
+    }
 
+    private static int saveResponseOn(
+        Connection conn,
+        ApiResponse response,
+        int requestId
+    ) {
         try {
             // Serialize full response to JSON for flexibility
             String fullResponseJson = null;
