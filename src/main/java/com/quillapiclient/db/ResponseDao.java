@@ -29,11 +29,9 @@ public class ResponseDao {
         // inserts never interleave with EDT traffic on the shared singleton.
         // Nested when already inside LiteConnection.withNewConnection.
         try {
-            // Block body with return is only value-compatible, so it picks
-            // SqlCallable over the void SqlRunnable overload.
-            return LiteConnection.withNewConnection(conn -> {
-                return saveResponseOn(conn, response, requestId);
-            });
+            return LiteConnection.withNewConnection(conn ->
+                saveResponseOn(conn, response, requestId)
+            );
         } catch (RuntimeException e) {
             System.err.println(
                 "Error opening response connection: " + e.getMessage()

@@ -116,7 +116,7 @@ public class ApiController {
 
                 // All DB work on this executor thread shares one dedicated
                 // connection (lookup, save response, post-script persist).
-                LiteConnection.withNewConnection(conn -> {
+                LiteConnection.runWithNewConnection(conn -> {
                     if (itemId > 0) {
                         int requestId =
                             requestController.getRequestIdByItemId(itemId);

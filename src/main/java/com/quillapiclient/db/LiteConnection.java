@@ -141,8 +141,14 @@ public class LiteConnection {
 
     /**
      * Like {@link #withNewConnection(SqlCallable)} for work that returns void.
+     *
+     * <p>Deliberately not an overload of {@code withNewConnection}: an
+     * expression lambda whose body calls a value-returning method matches both
+     * {@link SqlCallable} and {@link SqlRunnable}, so overloading the name
+     * makes such call sites ambiguous and fails the compile. Separate names
+     * keep every lambda unambiguous.
      */
-    public static void withNewConnection(SqlRunnable work) {
+    public static void runWithNewConnection(SqlRunnable work) {
         withNewConnection(conn -> {
             work.run(conn);
             return null;

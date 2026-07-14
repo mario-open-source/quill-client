@@ -48,7 +48,7 @@ public class Views {
         new SwingWorker<Void, Void>() {
             @Override
             protected Void doInBackground() {
-                LiteConnection.withNewConnection(conn -> {
+                LiteConnection.runWithNewConnection(conn -> {
                     collectionManager.loadAllCollections();
                     environmentManager.loadAllEnvironments();
                 });

@@ -2,8 +2,12 @@ package com.quillapiclient.controller;
 
 import com.quillapiclient.db.CollectionDao;
 import com.quillapiclient.db.ItemDao;
+import com.quillapiclient.db.LiteConnection;
 import java.io.File;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 import javax.swing.JOptionPane;
 import javax.swing.JTree;
@@ -33,6 +37,10 @@ class CollectionTreeLoader {
     };
 
     private final JTree tree;
+
+    /** Nodes whose children are currently being read on a worker. */
+    private final Set<DefaultMutableTreeNode> loadsInFlight =
+        Collections.newSetFromMap(new IdentityHashMap<>());
 
     CollectionTreeLoader(JTree tree) {
         this.tree = tree;
@@ -97,8 +105,6 @@ class CollectionTreeLoader {
         Integer parentFolderId,
         TreeNodeData nodeData
     ) {
-        DefaultTreeModel model = model();
-
         DefaultMutableTreeNode collectionNode = findCollectionNode(
             collectionId
         );
@@ -115,31 +121,52 @@ class CollectionTreeLoader {
                     nd.id == parentFolderId
             );
 
-            if (folderNode != null) {
-                parentNode = folderNode;
+            if (folderNode == null) {
+                // The folder lives under a level that was never materialized,
+                // so there is no node to hang the new item on. Falling back to
+                // the collection root would show a parent the database does not
+                // agree with; leave the tree alone instead. The item is already
+                // persisted and appears when its folder is expanded.
+                System.err.println(
+                    "Tree insert skipped: parent folder " +
+                    parentFolderId +
+                    " is not loaded in the tree"
+                );
+                return;
             }
+            parentNode = folderNode;
         }
 
-        DefaultMutableTreeNode newNode;
         if (hasUnloadedChildren(parentNode)) {
-            // The parent's children were never materialized. The new item is
-            // already in the database, so loading the level picks it up.
-            loadChildrenIfNeeded(parentNode);
-            newNode = findNodeDepthFirst(
-                parentNode,
-                uo -> uo instanceof TreeNodeData nd && nd.id == nodeData.id
-            );
-            if (newNode == null) return;
-        } else {
-            newNode = new DefaultMutableTreeNode(nodeData);
-            model.insertNodeInto(
-                newNode,
-                parentNode,
-                parentNode.getChildCount()
-            );
+            // Parent level was never materialized. The new item is already in
+            // the database, so loading the level picks it up; select it once
+            // the load lands.
+            DefaultMutableTreeNode target = parentNode;
+            loadChildren(parentNode, () -> selectNodeById(target, nodeData.id));
+            return;
         }
 
-        TreePath path = new TreePath(newNode.getPath());
+        DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(nodeData);
+        model().insertNodeInto(
+            newNode,
+            parentNode,
+            parentNode.getChildCount()
+        );
+        selectNode(newNode);
+    }
+
+    private void selectNodeById(DefaultMutableTreeNode parent, int itemId) {
+        DefaultMutableTreeNode node = findNodeDepthFirst(
+            parent,
+            uo -> uo instanceof TreeNodeData nd && nd.id == itemId
+        );
+        if (node != null) {
+            selectNode(node);
+        }
+    }
+
+    private void selectNode(DefaultMutableTreeNode node) {
+        TreePath path = new TreePath(node.getPath());
         tree.expandPath(path.getParentPath());
         tree.scrollPathToVisible(path);
         tree.setSelectionPath(path);
@@ -150,7 +177,26 @@ class CollectionTreeLoader {
      * first time it is expanded, replacing the loading placeholder.
      */
     void loadChildrenIfNeeded(DefaultMutableTreeNode node) {
+        loadChildren(node, null);
+    }
+
+    /**
+     * Reads one level of children off the EDT and swaps them in when they
+     * arrive, running {@code afterLoad} once the level is materialized.
+     *
+     * <p>The query runs on a worker because a flat level can hold thousands of
+     * rows: doing it inline in the expand listener would freeze the UI for as
+     * long as the read takes. The node keeps its placeholder ("Loading...")
+     * until the rows land.
+     */
+    private void loadChildren(
+        DefaultMutableTreeNode node,
+        Runnable afterLoad
+    ) {
         if (!hasUnloadedChildren(node)) {
+            if (afterLoad != null) {
+                afterLoad.run();
+            }
             return;
         }
 
@@ -158,6 +204,11 @@ class CollectionTreeLoader {
             return;
         }
         if (data.kind == TreeNodeData.Kind.REQUEST) {
+            return;
+        }
+        // An expand can fire again while the first read is still running
+        // (collapse + re-expand); one worker per node is enough.
+        if (!loadsInFlight.add(node)) {
             return;
         }
 
@@ -169,16 +220,45 @@ class CollectionTreeLoader {
             ? data.id
             : null;
 
-        List<ItemDao.ChildRow> rows = ItemDao.getChildRows(
-            collectionId,
-            parentId
-        );
+        new SwingWorker<List<ItemDao.ChildRow>, Void>() {
+            @Override
+            protected List<ItemDao.ChildRow> doInBackground() {
+                // Off the EDT, so this needs its own connection rather than the
+                // shared singleton the EDT is using.
+                return LiteConnection.withNewConnection(conn ->
+                    ItemDao.getChildRows(collectionId, parentId)
+                );
+            }
 
-        node.removeAllChildren();
-        for (ItemDao.ChildRow row : rows) {
-            node.add(createNodeForRow(row));
-        }
-        model().nodeStructureChanged(node);
+            @Override
+            protected void done() {
+                loadsInFlight.remove(node);
+
+                List<ItemDao.ChildRow> rows;
+                try {
+                    rows = get();
+                } catch (Exception e) {
+                    System.err.println(
+                        "Failed to load tree children: " + e.getMessage()
+                    );
+                    e.printStackTrace();
+                    return;
+                }
+
+                node.removeAllChildren();
+                for (ItemDao.ChildRow row : rows) {
+                    node.add(createNodeForRow(row));
+                }
+                model().nodeStructureChanged(node);
+                // nodeStructureChanged collapses the node, so re-apply the
+                // expansion the user asked for when they triggered the load.
+                tree.expandPath(new TreePath(node.getPath()));
+
+                if (afterLoad != null) {
+                    afterLoad.run();
+                }
+            }
+        }.execute();
     }
 
     private boolean hasUnloadedChildren(DefaultMutableTreeNode node) {
@@ -369,13 +449,15 @@ class CollectionTreeLoader {
         // Add to root (insert at beginning to show newest first)
         model.insertNodeInto(collectionNode, rootNode, 0);
 
-        // Expand the new collection
-        TreePath collectionPath = new TreePath(collectionNode.getPath());
-        tree.expandPath(collectionPath);
-
         // Expand root if not already expanded
         TreePath rootPath = new TreePath(rootNode);
         tree.expandPath(rootPath);
+
+        // Deliberately left collapsed: expanding here would materialize the
+        // whole first level (thousands of nodes for a flat export) right after
+        // import, which is what the lazy tree exists to avoid. Select it so the
+        // import is visible; expanding is the user's call.
+        selectNode(collectionNode);
         return collectionNode;
     }
 

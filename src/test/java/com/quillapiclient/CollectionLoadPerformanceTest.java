@@ -3,6 +3,7 @@ package com.quillapiclient;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -17,7 +18,9 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -139,18 +142,19 @@ public class CollectionLoadPerformanceTest {
             lazyHeapKb
         );
 
-        // Expanding the collection materializes exactly one level
+        // Expanding the collection materializes exactly one level. The read
+        // runs on a worker, so the level lands some time after expandPath
+        // returns.
         long expandStart = System.nanoTime();
         SwingUtilities.invokeAndWait(() ->
             tree.expandPath(new TreePath(collectionNode.getPath()))
         );
-        long expandMs = (System.nanoTime() - expandStart) / 1_000_000;
-
-        assertEquals(
-            REQUEST_COUNT,
-            collectionNode.getChildCount(),
+        waitUntil(
+            () -> collectionNode.getChildCount() == REQUEST_COUNT,
+            30_000,
             "expansion should load the full flat collection level"
         );
+        long expandMs = (System.nanoTime() - expandStart) / 1_000_000;
 
         long expandedHeapKb =
             Math.max(0, settledUsedHeap() - heapBefore) / 1024;
@@ -160,6 +164,30 @@ public class CollectionLoadPerformanceTest {
             expandMs,
             expandedHeapKb
         );
+    }
+
+    /**
+     * Polls {@code condition} on the EDT until it holds or the timeout expires.
+     * Tree children are loaded on a worker, so the assertion cannot run inline
+     * with the expand that triggered it.
+     */
+    private static void waitUntil(
+        BooleanSupplier condition,
+        long timeoutMs,
+        String message
+    ) throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            AtomicBoolean satisfied = new AtomicBoolean();
+            SwingUtilities.invokeAndWait(() ->
+                satisfied.set(condition.getAsBoolean())
+            );
+            if (satisfied.get()) {
+                return;
+            }
+            Thread.sleep(20);
+        }
+        fail(message + " (timed out after " + timeoutMs + " ms)");
     }
 
     private static DefaultMutableTreeNode findCollectionNode(
