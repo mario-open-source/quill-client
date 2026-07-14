@@ -4,10 +4,10 @@ import com.quillapiclient.db.CollectionDao;
 import com.quillapiclient.db.ItemDao;
 import com.quillapiclient.db.LiteConnection;
 import java.io.File;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.function.Predicate;
 import javax.swing.JOptionPane;
 import javax.swing.JTree;
@@ -38,9 +38,15 @@ class CollectionTreeLoader {
 
     private final JTree tree;
 
-    /** Nodes whose children are currently being read on a worker. */
-    private final Set<DefaultMutableTreeNode> loadsInFlight =
-        Collections.newSetFromMap(new IdentityHashMap<>());
+    /**
+     * Nodes whose children are currently being read on a worker, mapped to
+     * {@code afterLoad} callbacks that should run once the level lands.
+     * Identity map: tree nodes have no useful equals/hashCode.
+     * Touched only on the EDT (expand listener, context-menu inserts, worker
+     * {@code done()}).
+     */
+    private final Map<DefaultMutableTreeNode, List<Runnable>> loadsInFlight =
+        new IdentityHashMap<>();
 
     CollectionTreeLoader(JTree tree) {
         this.tree = tree;
@@ -188,6 +194,10 @@ class CollectionTreeLoader {
      * rows: doing it inline in the expand listener would freeze the UI for as
      * long as the read takes. The node keeps its placeholder ("Loading...")
      * until the rows land.
+     *
+     * <p>If a load is already in flight for {@code node}, no second worker is
+     * started; {@code afterLoad} is queued and runs with any other callbacks
+     * when that load finishes successfully.
      */
     private void loadChildren(
         DefaultMutableTreeNode node,
@@ -206,11 +216,22 @@ class CollectionTreeLoader {
         if (data.kind == TreeNodeData.Kind.REQUEST) {
             return;
         }
-        // An expand can fire again while the first read is still running
-        // (collapse + re-expand); one worker per node is enough.
-        if (!loadsInFlight.add(node)) {
+
+        // Expand + insert can both request the same level. One worker; queue
+        // every afterLoad so selection still runs when the first load lands.
+        List<Runnable> pending = loadsInFlight.get(node);
+        if (pending != null) {
+            if (afterLoad != null) {
+                pending.add(afterLoad);
+            }
             return;
         }
+
+        List<Runnable> callbacks = new ArrayList<>(1);
+        if (afterLoad != null) {
+            callbacks.add(afterLoad);
+        }
+        loadsInFlight.put(node, callbacks);
 
         // COLLECTION roots filter by collection id; folders only need parent id
         int collectionId = data.kind == TreeNodeData.Kind.COLLECTION
@@ -232,7 +253,7 @@ class CollectionTreeLoader {
 
             @Override
             protected void done() {
-                loadsInFlight.remove(node);
+                List<Runnable> queued = loadsInFlight.remove(node);
 
                 List<ItemDao.ChildRow> rows;
                 try {
@@ -242,6 +263,8 @@ class CollectionTreeLoader {
                         "Failed to load tree children: " + e.getMessage()
                     );
                     e.printStackTrace();
+                    // Leave the placeholder so a later expand can retry.
+                    // Do not run afterLoad: the level never materialized.
                     return;
                 }
 
@@ -254,8 +277,10 @@ class CollectionTreeLoader {
                 // expansion the user asked for when they triggered the load.
                 tree.expandPath(new TreePath(node.getPath()));
 
-                if (afterLoad != null) {
-                    afterLoad.run();
+                if (queued != null) {
+                    for (Runnable callback : queued) {
+                        callback.run();
+                    }
                 }
             }
         }.execute();

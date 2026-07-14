@@ -29,6 +29,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
@@ -36,7 +37,12 @@ import org.junit.jupiter.api.TestMethodOrder;
  * Memory/performance benchmark for loading a large (3000 request) collection.
  * Uses a throwaway database via the quill.db.path system property, so the
  * user's real database is never touched.
+ *
+ * <p>Excluded from the default Surefire run ({@code mvn test}) via the
+ * {@code benchmark} tag. Run explicitly with:
+ * {@code mvn test -Dgroups=benchmark -Dsurefire.excludedGroups=}
  */
+@Tag("benchmark")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class CollectionLoadPerformanceTest {
 
